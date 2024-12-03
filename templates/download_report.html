@@ -8,8 +8,32 @@
         body {
             font-family: Arial, sans-serif;
             max-width: 800px;
-            margin: 0 auto;
+            margin: 20px auto;
             padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .logout-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: #dc3545;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .logout-btn:hover {
+            background-color: #c82333;
         }
         .form-group {
             margin-bottom: 15px;
@@ -17,11 +41,14 @@
         label {
             display: block;
             margin-bottom: 5px;
+            font-weight: bold;
         }
         select {
             width: 100%;
             padding: 8px;
             margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
         }
         button {
             background-color: #4CAF50;
@@ -40,6 +67,7 @@
             border: 1px solid #ddd;
             border-radius: 4px;
             display: none;
+            background-color: #f8f9fa;
         }
         #logs {
             margin-top: 20px;
@@ -67,59 +95,63 @@
     </style>
 </head>
 <body>
-    <h1>Download Report</h1>
+    <div class="container">
+        <a href="/logout" class="logout-btn">Logout</a>
+        
+        <h1>Download Report</h1>
 
-    <div id="authWarning">
-        Please upload base info first to access this page. <a href="/upload_base_info">Go to Upload Base Info</a>
+        <div id="authWarning">
+            Please upload base info first to access this page. <a href="/upload_base_info">Go to Upload Base Info</a>
+        </div>
+        
+        <div id="reportForm">
+            <div class="form-group">
+                <label for="dateSource">Date Source:</label>
+                <select id="dateSource">
+                    <option value="0">Option 0</option>
+                    <option value="1">Option 1</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="dateTime">Date Time:</label>
+                <select id="dateTime">
+                    <option value="0">Option 0</option>
+                    <option value="1">Option 1</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="dateType">Date Type:</label>
+                <select id="dateType">
+                    <option value="0">Option 0</option>
+                    <option value="1">Option 1</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="year">Year:</label>
+                <select id="year">
+                    <option value="0">Option 0</option>
+                    <option value="1">Option 1</option>
+                </select>
+            </div>
+
+            <button onclick="downloadReport()">Download Report</button>
+        </div>
+
+        <div id="results" class="results">
+            <h2>Results:</h2>
+            <p>Total Score: <span id="totalScore"></span></p>
+            <p>High Risk Number: <span id="highRiskNum"></span></p>
+            <p>Mid Risk Number: <span id="midRiskNum"></span></p>
+            <p>Low Risk Number: <span id="lowRiskNum"></span></p>
+            <p>No Risk Number: <span id="noRiskNum"></span></p>
+            <p>Abnormal Risk Number: <span id="abnormalRiskNum"></span></p>
+        </div>
+
+        <div id="logs"></div>
     </div>
-    
-    <div id="reportForm">
-        <div class="form-group">
-            <label for="dateSource">Date Source:</label>
-            <select id="dateSource">
-                <option value="0">Option 0</option>
-                <option value="1">Option 1</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label for="dateTime">Date Time:</label>
-            <select id="dateTime">
-                <option value="0">Option 0</option>
-                <option value="1">Option 1</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label for="dateType">Date Type:</label>
-            <select id="dateType">
-                <option value="0">Option 0</option>
-                <option value="1">Option 1</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label for="year">Year:</label>
-            <select id="year">
-                <option value="0">Option 0</option>
-                <option value="1">Option 1</option>
-            </select>
-        </div>
-
-        <button onclick="downloadReport()">Download Report</button>
-    </div>
-
-    <div id="results" class="results">
-        <h2>Results:</h2>
-        <p>Total Score: <span id="totalScore"></span></p>
-        <p>High Risk Number: <span id="highRiskNum"></span></p>
-        <p>Mid Risk Number: <span id="midRiskNum"></span></p>
-        <p>Low Risk Number: <span id="lowRiskNum"></span></p>
-        <p>No Risk Number: <span id="noRiskNum"></span></p>
-        <p>Abnormal Risk Number: <span id="abnormalRiskNum"></span></p>
-    </div>
-
-    <div id="logs"></div>
 
     <script>
         function log(message, type = 'info') {

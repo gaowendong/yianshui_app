@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from database import get_db
 import os
-from services.auth import check_redis_connection, get_cached_token, redis_client
+from services.auth import check_redis_connection, get_cached_token, redis_client, clear_user_token
 from services.company_info import query_third_party_system
 import json
 from datetime import datetime
@@ -113,6 +113,27 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     access_token = create_access_token(data={"user_id": user.id})
     return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/logout")
+async def logout(request: Request, current_user: User = Depends(get_current_user)):
+    """Handle user logout"""
+    try:
+        # Clear Redis token
+        clear_user_token(current_user.id)
+        
+        # Clear session
+        request.session.clear()
+        
+        # Create response that redirects to login
+        response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+        
+        # Clear auth cookie
+        response.delete_cookie(key="Authorization")
+        
+        return response
+    except Exception as e:
+        logger.error(f"Error during logout: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error during logout")
 
 def log_request(message: str, **kwargs):
     """Helper function to log requests with timestamp"""

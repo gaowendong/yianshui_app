@@ -255,3 +255,30 @@ def decode_token(token: str) -> dict:
         print(f"Error during token decoding: {str(e)}")
         print(f"Stack trace: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error decoding token: {str(e)}")
+
+def clear_user_token(user_id: int) -> bool:
+    """
+    Clear user's token from Redis
+    """
+    try:
+        print(f"\n=== Clearing User Token ===")
+        print(f"Clearing token for user_id: {user_id}")
+        
+        check_redis_connection()
+        
+        redis_key = f"yas_token:{user_id}"
+        result = redis_client.delete(redis_key)
+        
+        if result:
+            print("Token cleared successfully")
+            return True
+        
+        print("No token found to clear")
+        return False
+    except redis.RedisError as e:
+        print(f"Redis error clearing token: {str(e)}")
+        return False
+    except Exception as e:
+        print(f"Error clearing token: {str(e)}")
+        print(f"Stack trace: {traceback.format_exc()}")
+        return False
