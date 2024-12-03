@@ -67,45 +67,42 @@
     </style>
 </head>
 <body>
-    <h1>下载报告</h1>
+    <h1>Download Report</h1>
 
     <div id="authWarning">
-        Please login first to access this page. <a href="/login">Go to Login</a>
+        Please upload base info first to access this page. <a href="/upload_base_info">Go to Upload Base Info</a>
     </div>
     
     <div id="reportForm">
         <div class="form-group">
-            <label for="dateSource">数据种类 (Date Source):</label>
-            <label >0 为上传，1 为内部</label>
+            <label for="dateSource">Date Source:</label>
             <select id="dateSource">
-                <option value="0">0</option>
-                <option value="1">1</option>
+                <option value="0">Option 0</option>
+                <option value="1">Option 1</option>
             </select>
         </div>
 
         <div class="form-group">
-            <label for="dateTime">时间 (Date Time):</label>
+            <label for="dateTime">Date Time:</label>
             <select id="dateTime">
-                <option value="0">0</option>
-                <option value="1">1</option>
+                <option value="0">Option 0</option>
+                <option value="1">Option 1</option>
             </select>
         </div>
 
         <div class="form-group">
-            <label for="dateType">日期维度 (Date Type):</label>
-            <label >0 年, 1 季度，2 为月</label>
+            <label for="dateType">Date Type:</label>
             <select id="dateType">
-                <option value="0">0</option>
-                <option value="1">1</option>
-                <option value="2">2</option>
+                <option value="0">Option 0</option>
+                <option value="1">Option 1</option>
             </select>
         </div>
 
         <div class="form-group">
-            <label for="year">年 (Year):</label>
+            <label for="year">Year:</label>
             <select id="year">
-                <option value="2022">2022</option>
-                <option value="2021">2021</option>
+                <option value="0">Option 0</option>
+                <option value="1">Option 1</option>
             </select>
         </div>
 
@@ -114,12 +111,12 @@
 
     <div id="results" class="results">
         <h2>Results:</h2>
-        <p>总分数 Total Score: <span id="totalScore"></span></p>
-        <p>高风险数 High Risk Number: <span id="highRiskNum"></span></p>
-        <p>中风险数 Mid Risk Number: <span id="midRiskNum"></span></p>
-        <p>低风险数 Low Risk Number: <span id="lowRiskNum"></span></p>
-        <p>无风险数 No Risk Number: <span id="noRiskNum"></span></p>
-        <p>不正常风险数 Abnormal Risk Number: <span id="abnormalRiskNum"></span></p>
+        <p>Total Score: <span id="totalScore"></span></p>
+        <p>High Risk Number: <span id="highRiskNum"></span></p>
+        <p>Mid Risk Number: <span id="midRiskNum"></span></p>
+        <p>Low Risk Number: <span id="lowRiskNum"></span></p>
+        <p>No Risk Number: <span id="noRiskNum"></span></p>
+        <p>Abnormal Risk Number: <span id="abnormalRiskNum"></span></p>
     </div>
 
     <div id="logs"></div>

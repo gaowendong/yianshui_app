@@ -50,7 +50,7 @@ async def check_redis_middleware(request: Request, call_next):
                     status_code=he.status_code,
                     content={"detail": str(he.detail)}
                 )
-            return RedirectResponse(url="/login")
+            return RedirectResponse(url="/upload_base_info")
     
     response = await call_next(request)
     return response
@@ -58,16 +58,16 @@ async def check_redis_middleware(request: Request, call_next):
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     """
-    Redirect to login page
+    Redirect to upload base info page
     """
-    return RedirectResponse(url="/login")
+    return RedirectResponse(url="/upload_base_info")
 
-@app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
+@app.get("/upload_base_info", response_class=HTMLResponse)
+async def upload_base_info_page(request: Request):
     """
-    Serve the login page
+    Serve the upload base info page
     """
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse("upload_base_info.html", {"request": request})
 
 @app.get("/upload", response_class=HTMLResponse)
 async def upload_page(request: Request):
@@ -78,7 +78,7 @@ async def upload_page(request: Request):
         check_redis_connection()
         return templates.TemplateResponse("upload_company_info.html", {"request": request})
     except HTTPException:
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/upload_base_info")
 
 @app.get("/download-report", response_class=HTMLResponse)
 async def download_report_page(request: Request):
@@ -89,7 +89,7 @@ async def download_report_page(request: Request):
         check_redis_connection()
         return templates.TemplateResponse("download_report.html", {"request": request})
     except HTTPException:
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/upload_base_info")
 
 @app.post("/api/download-report/{system_user_id}")
 async def download_report(system_user_id: int, request: Request):
@@ -111,7 +111,7 @@ async def download_report(system_user_id: int, request: Request):
                        token_preview=f"{token[:10]}...")
         else:
             log_request("Error: Token not found")
-            raise HTTPException(status_code=401, detail="Token not found. Please login first.")
+            raise HTTPException(status_code=401, detail="Token not found. Please upload base info first.")
         
         # Call the service function
         log_request("Calling query_third_party_system")
