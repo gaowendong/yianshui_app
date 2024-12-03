@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - Yi'an Tax System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px;
+            padding: 30px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            text-align: center;
+        }
+        .error-code {
+            font-size: 48px;
+            color: #dc3545;
+            margin-bottom: 20px;
+        }
+        .error-message {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        .error-details {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 30px;
+            text-align: left;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+            cursor: pointer;
+        }
+        .back-button {
+            background-color: #4CAF50;
+        }
+        .back-button:hover {
+            background-color: #45a049;
+        }
+        .retry-button {
+            background-color: #007bff;
+        }
+        .retry-button:hover {
+            background-color: #0056b3;
+        }
+        .check-redis-button {
+            background-color: #6c757d;
+        }
+        .check-redis-button:hover {
+            background-color: #5a6268;
+        }
+        #redisStatus {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .status-checking {
+            background-color: #e3f2fd;
+            border: 1px solid #bbdefb;
+            color: #1976d2;
+        }
+        .status-ok {
+            background-color: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            color: #2e7d32;
+        }
+        .status-error {
+            background-color: #ffebee;
+            border: 1px solid #ffcdd2;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-code">{{ status_code }}</div>
+        <div class="error-message">{{ detail }}</div>
+        
+        {% if status_code == 500 and 'Redis' in detail %}
+        <div class="error-details">
+            Please ensure:
+            1. Redis server is running
+            2. Redis is accessible on localhost:6379
+            3. No firewall is blocking the connection
+        </div>
+        <div id="redisStatus"></div>
+        {% endif %}
+        
+        <div class="button-group">
+            <a href="/login" class="button back-button">Back to Login</a>
+            <a href="javascript:location.reload()" class="button retry-button">Retry</a>
+            {% if status_code == 500 and 'Redis' in detail %}
+            <a href="javascript:checkRedis()" class="button check-redis-button">Check Redis</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if status_code == 500 and 'Redis' in detail %}
+    <script>
+        async function checkRedis() {
+            const statusDiv = document.getElementById('redisStatus');
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status-checking';
+            statusDiv.textContent = 'Checking Redis connection...';
+
+            try {
+                const response = await fetch('/api/v1/test-redis');
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    statusDiv.className = 'status-ok';
+                    statusDiv.textContent = 'Redis connection successful! You can now retry the operation.';
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                statusDiv.className = 'status-error';
+                statusDiv.textContent = `Redis Error: ${error.message}`;
+            }
+        }
+    </script>
+    {% endif %}
+</body>
+</html>

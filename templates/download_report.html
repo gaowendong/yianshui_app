@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: none;
+        }
+        #logs {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        #authWarning {
+            display: none;
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        #reportForm {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>下载报告</h1>
+
+    <div id="authWarning">
+        Please login first to access this page. <a href="/login">Go to Login</a>
+    </div>
+    
+    <div id="reportForm">
+        <div class="form-group">
+            <label for="dateSource">数据种类 (Date Source):</label>
+            <label >0 为上传，1 为内部</label>
+            <select id="dateSource">
+                <option value="0">0</option>
+                <option value="1">1</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="dateTime">时间 (Date Time):</label>
+            <select id="dateTime">
+                <option value="0">0</option>
+                <option value="1">1</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="dateType">日期维度 (Date Type):</label>
+            <label >0 年, 1 季度，2 为月</label>
+            <select id="dateType">
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="year">年 (Year):</label>
+            <select id="year">
+                <option value="2022">2022</option>
+                <option value="2021">2021</option>
+            </select>
+        </div>
+
+        <button onclick="downloadReport()">Download Report</button>
+    </div>
+
+    <div id="results" class="results">
+        <h2>Results:</h2>
+        <p>总分数 Total Score: <span id="totalScore"></span></p>
+        <p>高风险数 High Risk Number: <span id="highRiskNum"></span></p>
+        <p>中风险数 Mid Risk Number: <span id="midRiskNum"></span></p>
+        <p>低风险数 Low Risk Number: <span id="lowRiskNum"></span></p>
+        <p>无风险数 No Risk Number: <span id="noRiskNum"></span></p>
+        <p>不正常风险数 Abnormal Risk Number: <span id="abnormalRiskNum"></span></p>
+    </div>
+
+    <div id="logs"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const timestamp = new Date().toISOString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            
+            if (type === 'error') {
+                logsDiv.innerHTML += `<span style="color: #dc3545;">${logEntry}</span>`;
+            } else if (type === 'success') {
+                logsDiv.innerHTML += `<span style="color: #28a745;">${logEntry}</span>`;
+            } else {
+                logsDiv.innerHTML += logEntry;
+            }
+            
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const systemUserId = localStorage.getItem('systemUserId');
+            const authWarning = document.getElementById('authWarning');
+            const reportForm = document.getElementById('reportForm');
+
+            if (!systemUserId) {
+                log('No System User ID found in localStorage', 'error');
+                authWarning.style.display = 'block';
+                reportForm.style.display = 'none';
+            } else {
+                log('Found System User ID: ' + systemUserId, 'success');
+                authWarning.style.display = 'none';
+                reportForm.style.display = 'block';
+            }
+        });
+
+        async function downloadReport() {
+            try {
+                const systemUserId = localStorage.getItem('systemUserId');
+                if (!systemUserId) {
+                    log('Error: No System User ID found', 'error');
+                    return;
+                }
+
+                log('Starting report download...');
+                log('Using System User ID: ' + systemUserId);
+
+                const params = {
+                    dateSource: parseInt(document.getElementById('dateSource').value),
+                    dateTime: parseInt(document.getElementById('dateTime').value),
+                    dateType: parseInt(document.getElementById('dateType').value),
+                    year: parseInt(document.getElementById('year').value)
+                };
+
+                log(`Request parameters: ${JSON.stringify(params, null, 2)}`);
+
+                // Make request to our backend endpoint
+                const response = await fetch(`/api/download-report/${systemUserId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(params)
+                });
+
+                log(`Response status: ${response.status}`);
+
+                const data = await response.json();
+                log(`Response data: ${JSON.stringify(data, null, 2)}`);
+
+                if (response.ok && data.status === 200) {
+                    // Display results
+                    document.getElementById('results').style.display = 'block';
+                    const riskMain = data.data.riskMain;
+                    document.getElementById('totalScore').textContent = riskMain.totalScore;
+                    document.getElementById('highRiskNum').textContent = riskMain.highRiskNum;
+                    document.getElementById('midRiskNum').textContent = riskMain.midRiskNum;
+                    document.getElementById('lowRiskNum').textContent = riskMain.lowRiskNum;
+                    document.getElementById('noRiskNum').textContent = riskMain.noRiskNum;
+                    document.getElementById('abnormalRiskNum').textContent = riskMain.abnormalRiskNum;
+                    
+                    log('Successfully displayed results', 'success');
+                } else {
+                    const errorMessage = data.detail || data.msg || 'An error occurred';
+                    log(`Error: ${errorMessage}`, 'error');
+                    alert(errorMessage);
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                alert('An error occurred while downloading the report');
+            }
+        }
+    </script>
+</body>
+</html>

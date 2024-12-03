@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Company Information</title>
+    <style>
+        /* Previous styles remain the same */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 0 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        select, input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #response, #debugInfo {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+        }
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            color: #28a745;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .loading {
+            display: none;
+            color: #666;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .file-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+        }
+        .file-requirements {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #495057;
+            white-space: pre-line;
+        }
+        .files-container {
+            margin-top: 20px;
+        }
+        .file-input-group {
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        .file-input-group label {
+            color: #495057;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload Company Information</h1>
+        
+        <div id="authWarning" class="error" style="display: none;">
+            Please login first at <a href="/login">Login Page</a> to get your System User ID
+        </div>
+
+        <div id="fileRequirements" class="file-requirements">
+            Select Date Type to see file requirements
+        </div>
+
+        <form id="uploadForm" style="display: none;">
+            <div class="form-group">
+                <label for="dateSource">Data Source:</label>
+                <select id="dateSource" name="dateSource" required>
+                    <option value="0">Upload</option>
+                    <option value="1">Internal</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="dateType">Date Type:</label>
+                <select id="dateType" name="dateType" required onchange="updateFileInputs()">
+                    <option value="0">Year</option>
+                    <option value="1">Quarter</option>
+                    <option value="2">Month</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="year">Year:</label>
+                <input type="number" id="year" name="year" required min="2000" max="2100" value="2022">
+            </div>
+
+            <div id="filesContainer" class="files-container">
+                <!-- File inputs will be dynamically added here -->
+            </div>
+
+            <button type="submit">Upload Files</button>
+        </form>
+
+        <div id="loading" class="loading">Uploading files, please wait...</div>
+        <div id="response"></div>
+        <div id="debugInfo"></div>
+    </div>
+
+    <script>
+        function logDebug(message, type = 'info') {
+            const debugInfo = document.getElementById('debugInfo');
+            if (!debugInfo) return;  // Guard against null
+
+            const timestamp = new Date().toISOString();
+            let logMessage = `[${timestamp}] ${message}\n`;
+            
+            if (type === 'error') {
+                logMessage = `<span style="color: red;">${logMessage}</span>`;
+            } else if (type === 'success') {
+                logMessage = `<span style="color: green;">${logMessage}</span>`;
+            }
+            
+            debugInfo.innerHTML = logMessage + debugInfo.innerHTML;
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function updateFileInputs() {
+            const dateType = document.getElementById('dateType').value;
+            const filesContainer = document.getElementById('filesContainer');
+            const fileRequirements = document.getElementById('fileRequirements');
+            
+            filesContainer.innerHTML = '';
+            
+            let numFiles = 0;
+            let requirementsText = '';
+            
+            if (dateType === '0') { // Year
+                numFiles = 6;
+                requirementsText = 'For Yearly reports, you need to upload 6 files:\n' +
+                    '1. Balance Sheet\n' +
+                    '2. Income Statement\n' +
+                    '3. Cash Flow Statement\n' +
+                    '4. Tax Return\n' +
+                    '5. VAT Return\n' +
+                    '6. Other Financial Reports';
+            } else if (dateType === '1') { // Quarter
+                numFiles = 6;
+                requirementsText = 'For Quarterly reports, you need to upload 6 files:\n' +
+                    '1. Quarterly Balance Sheet\n' +
+                    '2. Quarterly Income Statement\n' +
+                    '3. Quarterly Cash Flow\n' +
+                    '4. Tax Declaration\n' +
+                    '5. VAT Filing\n' +
+                    '6. Supporting Documents';
+            } else if (dateType === '2') { // Month
+                numFiles = 4;
+                requirementsText = 'For Monthly reports, you need to upload 4 files:\n' +
+                    '1. Monthly Financial Statement\n' +
+                    '2. VAT Return\n' +
+                    '3. Tax Payment Receipt\n' +
+                    '4. Supporting Documents';
+            }
+            
+            fileRequirements.textContent = requirementsText;
+            
+            for (let i = 0; i < numFiles; i++) {
+                const fileGroup = document.createElement('div');
+                fileGroup.className = 'file-input-group';
+                fileGroup.innerHTML = `
+                    <label for="file${i}">File ${i + 1}:</label>
+                    <input type="file" id="file${i}" name="files" accept=".xls,.xlsx" required>
+                    <small style="display: block; color: #666;">Accepted formats: .xls, .xlsx</small>
+                `;
+                filesContainer.appendChild(fileGroup);
+            }
+        }
+
+        // Initialize form when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            const systemUserId = localStorage.getItem('systemUserId');
+            const authWarning = document.getElementById('authWarning');
+            const uploadForm = document.getElementById('uploadForm');
+            
+            if (!systemUserId) {
+                logDebug('No System User ID found in localStorage', 'error');
+                authWarning.style.display = 'block';
+                uploadForm.style.display = 'none';
+            } else {
+                logDebug('Found System User ID: ' + systemUserId, 'success');
+                authWarning.style.display = 'none';
+                uploadForm.style.display = 'block';
+                updateFileInputs(); // Initialize file inputs
+            }
+
+            // Add form submit handler
+            uploadForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData();
+                formData.append('date_source', document.getElementById('dateSource').value);
+                formData.append('date_type', document.getElementById('dateType').value);
+                formData.append('year', document.getElementById('year').value);
+
+                // Append all files
+                const filesContainer = document.getElementById('filesContainer');
+                const fileInputs = filesContainer.querySelectorAll('input[type="file"]');
+                let fileCount = 0;
+                
+                fileInputs.forEach((input, index) => {
+                    if (input.files[0]) {
+                        formData.append('files', input.files[0]);
+                        logDebug(`File ${index + 1}: ${input.files[0].name}`);
+                        fileCount++;
+                    }
+                });
+
+                if (fileCount === 0) {
+                    logDebug('Error: No files selected', 'error');
+                    return;
+                }
+
+                const responseDiv = document.getElementById('response');
+                const loadingDiv = document.getElementById('loading');
+                const submitButton = document.querySelector('button[type="submit"]');
+                
+                try {
+                    loadingDiv.style.display = 'block';
+                    submitButton.disabled = true;
+                    responseDiv.innerHTML = '';
+
+                    logDebug('Sending files to server...');
+
+                    const response = await fetch(`/api/v1/upload-company-info/${systemUserId}`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    logDebug('Server response received');
+                    logDebug(JSON.stringify(data, null, 2));
+                    
+                    if (response.ok) {
+                        responseDiv.innerHTML = `<div class="success">
+                            Upload successful!<br>
+                            Status: ${data.status}<br>
+                            Message: ${data.message}<br>
+                            Files processed: ${fileCount}<br>
+                            Timestamp: ${data.timestamp}
+                        </div>`;
+                        logDebug('Upload completed successfully', 'success');
+                    } else {
+                        throw new Error(JSON.stringify(data));
+                    }
+                } catch (error) {
+                    logDebug('Error occurred', 'error');
+                    logDebug(error.message);
+                    responseDiv.innerHTML = `<div class="error">
+                        Error: ${error.message}<br><br>
+                        Please ensure:<br>
+                        1. All required files are selected<br>
+                        2. Files are in correct format (.xls, .xlsx)<br>
+                        3. You are properly logged in
+                    </div>`;
+                } finally {
+                    loadingDiv.style.display = 'none';
+                    submitButton.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
