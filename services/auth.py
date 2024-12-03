@@ -215,3 +215,43 @@ def validate_token(token: str) -> bool:
         print(f"Error during token validation: {str(e)}")
         print(f"Stack trace: {traceback.format_exc()}")
         return False
+
+def decode_token(token: str) -> dict:
+    """
+    Decode token and return associated data from Redis
+    """
+    try:
+        print(f"\n=== Decoding Token ===")
+        print(f"Decoding token: {token}")
+        
+        check_redis_connection()
+        
+        # Scan through all keys to find the token
+        for key in redis_client.scan_iter("yas_token:*"):
+            print(f"Checking key: {key}")
+            token_data = redis_client.get(key)
+            if token_data:
+                try:
+                    data = json.loads(token_data)
+                    if data['token'] == token:
+                        print(f"Found token data: {json.dumps(data, indent=2)}")
+                        return {
+                            'user_id': data['systemUserId'],
+                            'tenant_id': data['tenantId'],
+                            'expiration_time': data['expirationTime']
+                        }
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing token data for key {key}: {str(e)}")
+                    continue
+        
+        print("Token not found in Redis")
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except redis.RedisError as e:
+        print(f"Redis error during token decoding: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Redis error: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error during token decoding: {str(e)}")
+        print(f"Stack trace: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error decoding token: {str(e)}")

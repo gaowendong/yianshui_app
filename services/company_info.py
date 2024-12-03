@@ -1,9 +1,9 @@
 import httpx
 from fastapi import HTTPException
 from config import settings
-from models import CompanyInfo, User
+from models import CompanyInfo, User, RiskReport
 from sqlalchemy.orm import Session
-from services.auth import get_cached_token, validate_token, redis_client
+from services.auth import get_cached_token, validate_token, redis_client, decode_token
 from datetime import datetime
 import json
 import traceback
@@ -153,9 +153,9 @@ async def upload_company_info(db: Session, user_id: int, date_source: int, date_
             detail=f"Internal server error during company info upload: {str(e)}"
         )
 
-async def query_third_party_system(date_source: int, date_time: int, date_type: int, year: int, token: str) -> dict:
+async def query_third_party_system(db: Session, date_source: int, date_time: int, date_type: int, year: int, token: str) -> dict:
     """
-    Query the third-party system for risk report
+    Query the third-party system for risk report and store the response in database
     """
     try:
         print("\n=== Starting Risk Report Download ===")
@@ -166,12 +166,24 @@ async def query_third_party_system(date_source: int, date_time: int, date_type: 
         print(f"Year: {year}")
         print(f"Token: {token[:10]}...")  # Only show first 10 chars of token
 
-        # Validate token
+        # Validate token and get user_id
         print("\nValidating token...")
         if not validate_token(token):
             error_msg = "Invalid or expired token"
             print(f"Error: {error_msg}")
             raise HTTPException(status_code=401, detail=error_msg)
+
+        # Get user_id from token
+        token_data = decode_token(token)
+        system_user_id = token_data.get('user_id')
+        if not system_user_id:
+            raise HTTPException(status_code=401, detail="Invalid token: no user_id found")
+
+        # Find the corresponding local user
+        user = db.query(User).filter(User.is_admin == True).first()  # Temporarily use admin user
+        if not user:
+            raise HTTPException(status_code=404, detail="No admin user found in the system")
+        local_user_id = user.id
 
         print("Downloading process, Token validation successful")
 
@@ -238,8 +250,15 @@ async def query_third_party_system(date_source: int, date_time: int, date_type: 
                     print(f"API Error: {error_msg}")
                     raise HTTPException(status_code=400, detail=error_msg)
 
-                # TODO: Store report data in database (to be implemented)
-                print("\n=== Report Data Retrieved Successfully ===")
+                # Store report data in database using local user ID
+                print("\n=== Storing Report Data in Database ===")
+                risk_report = RiskReport(
+                    user_id=local_user_id,  # Use local user ID instead of system user ID
+                    response_data=response_data
+                )
+                db.add(risk_report)
+                db.commit()
+                print(f"Stored risk report for local user {local_user_id}")
                 
                 return response_data
 

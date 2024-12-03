@@ -1,320 +1,119 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
+    <title>Login</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yi'an Tax System - Login</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
+        * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
             background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-            background-color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            border-radius: 8px;
-        }
-        .workflow-steps {
+            height: 100vh;
             display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-            padding: 20px 0;
-            border-bottom: 1px solid #eee;
+            justify-content: center;
+            align-items: center;
         }
-        .step {
+
+        .login-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            margin: 1rem;
+        }
+
+        h1 {
             text-align: center;
-            flex: 1;
-            position: relative;
+            color: #333;
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
         }
-        .step.active {
-            color: #4CAF50;
-            font-weight: bold;
-        }
-        .step:not(:last-child):after {
-            content: "→";
-            position: absolute;
-            right: -10px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #ccc;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input, select {
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 100%;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        #response {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 4px;
-        }
-        .error {
-            color: #721c24;
+
+        .error-message {
+            color: #dc3545;
             background-color: #f8d7da;
             border: 1px solid #f5c6cb;
-            padding: 10px;
-            margin: 10px 0;
+            padding: 0.75rem;
             border-radius: 4px;
-        }
-        .success {
-            color: #155724;
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 4px;
-        }
-        #requestLog {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background-color: #f8f9fa;
-            font-family: monospace;
-            font-size: 12px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        #redisStatus {
-            margin-bottom: 20px;
-            padding: 10px;
-            border-radius: 4px;
+            margin-bottom: 1rem;
             text-align: center;
         }
-        .status-checking {
-            background-color: #e3f2fd;
-            border: 1px solid #bbdefb;
-            color: #1976d2;
+
+        .form-group {
+            margin-bottom: 1rem;
         }
-        .status-ok {
-            background-color: #e8f5e9;
-            border: 1px solid #c8e6c9;
-            color: #2e7d32;
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #495057;
+            font-weight: 500;
         }
-        .status-error {
-            background-color: #ffebee;
-            border: 1px solid #ffcdd2;
-            color: #c62828;
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 1rem;
+            transition: border-color 0.15s ease-in-out;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #80bdff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.15s ease-in-out;
+            margin-top: 1rem;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                margin: 1rem;
+                padding: 1.5rem;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="workflow-steps">
-            <div class="step active">1. Login & Register</div>
-            <div class="step">2. Upload Files</div>
-            <div class="step">3. Download Report</div>
-        </div>
-
-        <h1>Yi'an Tax System Login</h1>
-
-        <div id="redisStatus" class="status-checking">
-            Checking Redis connection...
-        </div>
-        
-        <form id="loginForm" style="display: none;">
+    <div class="login-container">
+        <h1>Login</h1>
+        {% if error %}
+            <div class="error-message">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="/login">
             <div class="form-group">
-                <label for="companyName">企业名称:</label>
-                <input type="text" id="companyName" value="易安税联调测试企业" required>
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
             </div>
-
             <div class="form-group">
-                <label for="indexStandardType">会计准则类型:</label>
-                <select id="indexStandardType" required>
-                    <option value="1">企业会计准则（2019）</option>
-                    <option value="0">企业会计准则（2007）</option>
-                    <option value="2">小企业会计准则（2013</option>
-                </select>
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
             </div>
-
-            <div class="form-group">
-                <label for="industry">行业类型:</label>
-                <select id="industry" required>
-                    <option value="0">制造业</option>
-                    <option value="1">批发和零售业</option>
-                    <option value="2">现代服务业</option>
-                    <option value="3">其他</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="registrationType">注册类型:</label>
-                <select id="registrationType" required>
-                    <option value="0">有限责任公司</option>
-                    <option value="1">股份有限公司</option>
-                    <option value="2">其他</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="taxpayerNature">纳税人性质:</label>
-                <select id="taxpayerNature" required>
-                    <option value="0">一般纳税人</option>
-                    <option value="1">小规模纳税人</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="taxpayerNo">纳税人识别号:</label>
-                <input type="text" id="taxpayerNo" value="HJKSH8234203JDSKADHS" required>
-            </div>
-
-            <button type="submit">Login & Continue to Upload</button>
+            <button type="submit">Sign In</button>
         </form>
-
-        <div id="requestLog"></div>
-        <div id="response"></div>
     </div>
-
-    <script>
-        function log(message, type = 'info') {
-            const logDiv = document.getElementById('requestLog');
-            const timestamp = new Date().toISOString();
-            const logEntry = `[${timestamp}] ${message}\n`;
-            
-            if (type === 'error') {
-                logDiv.innerHTML += `<span style="color: #dc3545;">${logEntry}</span>`;
-            } else if (type === 'success') {
-                logDiv.innerHTML += `<span style="color: #28a745;">${logEntry}</span>`;
-            } else {
-                logDiv.innerHTML += logEntry;
-            }
-            
-            console.log(`[${timestamp}] ${message}`);
-            logDiv.scrollTop = logDiv.scrollHeight;
-        }
-
-        async function checkRedisConnection() {
-            const redisStatus = document.getElementById('redisStatus');
-            const loginForm = document.getElementById('loginForm');
-
-            try {
-                log('Checking Redis connection through backend API...');
-                const response = await fetch('/api/v1/test-redis');
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                log('Redis test response:', 'info');
-                log(JSON.stringify(data, null, 2), 'info');
-
-                if (data.status === 'success') {
-                    log('Redis connection successful', 'success');
-                    redisStatus.className = 'status-ok';
-                    redisStatus.textContent = 'Redis connection verified ✓';
-                    loginForm.style.display = 'block';
-                } else {
-                    throw new Error(data.message || 'Redis connection failed');
-                }
-            } catch (error) {
-                log(`Redis connection check failed: ${error.message}`, 'error');
-                redisStatus.className = 'status-error';
-                redisStatus.innerHTML = `Redis Error: ${error.message}<br>Please contact system administrator.`;
-                loginForm.style.display = 'none';
-            }
-        }
-
-        window.addEventListener('load', checkRedisConnection);
-
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = {
-                companyName: document.getElementById('companyName').value,
-                indexStandardType: document.getElementById('indexStandardType').value,
-                industry: document.getElementById('industry').value,
-                registrationType: document.getElementById('registrationType').value,
-                taxpayerNature: document.getElementById('taxpayerNature').value,
-                taxpayerNo: document.getElementById('taxpayerNo').value
-            };
-
-            const responseDiv = document.getElementById('response');
-            const submitButton = document.querySelector('button[type="submit"]');
-            
-            try {
-                submitButton.disabled = true;
-                log('Starting registration process...');
-                log(`Request Data: ${JSON.stringify(formData, null, 2)}`);
-
-                // Register with backend API
-                log('Sending registration request...');
-                const response = await fetch('/api/v1/register', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(formData),
-                    credentials: 'include'  // Important: Include credentials for session handling
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'Registration failed');
-                }
-
-                const data = await response.json();
-                log(`Registration response: ${JSON.stringify(data, null, 2)}`, 'success');
-
-                if (data.status === 200) {
-                    responseDiv.innerHTML = `<div class="success">
-                        Login Successful! Redirecting to upload page...
-                    </div>`;
-
-                    // Redirect to upload page after successful login
-                    setTimeout(() => {
-                        window.location.href = '/upload';
-                    }, 2000);
-                } else {
-                    throw new Error(data.msg || 'Registration failed');
-                }
-            } catch (error) {
-                log(`Error occurred: ${error.message}`, 'error');
-                responseDiv.innerHTML = `<div class="error">
-                    Error: ${error.message}
-                    <br><br>
-                    Please ensure:
-                    1. All form fields are filled correctly
-                    2. Redis server is running
-                    3. Backend server is accessible
-                </div>`;
-            } finally {
-                submitButton.disabled = false;
-            }
-        });
-    </script>
 </body>
 </html>

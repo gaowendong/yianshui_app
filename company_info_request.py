@@ -7,7 +7,7 @@ from pydantic import BaseModel
 import json
 import traceback
 
-from database import session
+from database import SessionLocal
 from models import QueryResult
 from schemas.company import CompanyInfoCreate, CompanyInfoOut
 from services.company_info import upload_company_info, query_third_party_system
@@ -18,7 +18,7 @@ router = APIRouter()
 
 # Dependency to get database session
 def get_db():
-    db = session()
+    db = SessionLocal()
     try:
         yield db
     finally:

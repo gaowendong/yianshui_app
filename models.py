@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
-from database import Base, engine, session
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, JSON
+from database import Base, engine
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 class User(Base):
     __tablename__ = "users"
@@ -12,14 +13,12 @@ class User(Base):
     firstname = Column(String(225))
     lastname = Column(String(225))
     is_admin = Column(Boolean)
-    # 'role' indicates if the user is a first-level or second-level channel
     role = Column(String(225))  # "level_1" for first-level, "level_2" for second-level
     first_level_channel_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     
-    # # Relationship to link second-level users to their first-level counterpart
-    # first_level_channel = relationship("User", remote_side=[id])
     companies = relationship("CompanyInfo", back_populates="user")
     query_results = relationship("QueryResult", back_populates="user")
+    risk_reports = relationship("RiskReport", back_populates="user")
 
 class CompanyInfo(Base):
     __tablename__ = 'company_info'
@@ -46,6 +45,16 @@ class QueryResult(Base):
 
     user = relationship("User", back_populates="query_results")
     company_info = relationship("CompanyInfo", back_populates="query_results")
+
+class RiskReport(Base):
+    __tablename__ = "risk_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    response_data = Column(JSON)  # Store the entire JSON response
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="risk_reports")
 
 # Create tables in the database
 Base.metadata.create_all(engine)
