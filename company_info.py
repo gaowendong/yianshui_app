@@ -1,17 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form, Request
+from fastapi import APIRouter, Depends, status, HTTPException, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 from typing import Annotated, List
-import asyncio
 from datetime import datetime
 from pydantic import BaseModel
 import json
 import traceback
 
 from database import SessionLocal
-from models import QueryResult
-from schemas.company import CompanyInfoCreate, CompanyInfoOut
-from services.company_info import upload_company_info, query_third_party_system
-from services.auth import register_tenant, check_redis_connection, redis_client
+from models import User
+from services.company import upload_company_info, upload_company_info_batch, query_third_party_system
+from services.auth import register_tenant, check_redis_connection, redis_client, decode_token, get_cached_token
+from utils.auth_utils import get_current_user
 
 # Initialize router
 router = APIRouter()
@@ -104,11 +103,19 @@ class TenantRegistration(BaseModel):
     taxpayerNature: str
     taxpayerNo: str
 
+# Report request model
+class ReportRequest(BaseModel):
+    dateSource: int
+    dateTime: str
+    dateType: int
+    year: int
+
 @router.post("/register")
 async def register_new_tenant(request: Request, registration_data: TenantRegistration):
     """
     Register a new tenant and get authentication token
     """
+    print("\n=== company_info.py - in register_new_tenant method. ===")
     try:
         print("\n=== Starting New Tenant Registration ===")
         print(f"Registration Data: {json.dumps(registration_data.dict(), indent=2)}")
@@ -151,15 +158,16 @@ async def register_new_tenant(request: Request, registration_data: TenantRegistr
             detail=f"Registration failed: {str(e)}"
         )
 
-@router.post("/upload-company-info/{user_id}")
+@router.post("/upload-company-info/{system_user_id}")
 async def upload_company_data(
+    system_user_id: int,
     request: Request,
-    user_id: int,
     date_source: Annotated[int, Form()],
     date_type: Annotated[int, Form()],
     year: Annotated[int, Form()],
     files: List[UploadFile] = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Upload company information files with required parameters
@@ -168,9 +176,22 @@ async def upload_company_data(
         print("\n=== Starting Company Info Upload ===")
         print(f"Timestamp: {datetime.now().isoformat()}")
         
+        # Use the current user's real user ID
+        real_user_id = current_user.id
+
+        # Verify user authentication
+        token = get_cached_token(system_user_id)
+        if not token:
+            raise HTTPException(status_code=401, detail="User not authenticated. Please login first.")
+        
+        # Get token data to verify user
+        token_data = json.loads(redis_client.get(f"yas_token:{system_user_id}"))
+        if token_data['systemUserId'] != system_user_id:
+            raise HTTPException(status_code=403, detail="Access denied. User ID mismatch.")
+        
         # Log request details
         await log_request_details(request, {
-            "user_id": user_id,
+            "user_id": real_user_id,
             "date_source": date_source,
             "date_type": date_type,
             "year": year,
@@ -188,7 +209,7 @@ async def upload_company_data(
         for file in files:
             await file.seek(0)
         
-        # Check Redis connection first
+        # Check Redis connection
         print("\nChecking Redis connection...")
         check_redis_connection()
         print("Redis connection verified")
@@ -226,57 +247,26 @@ async def upload_company_data(
                 print(error_msg)
                 raise HTTPException(status_code=400, detail=error_msg)
 
-        print("\nAll validations passed, proceeding with upload...")
+        print("\nAll validations passed, proceeding with batch upload...")
         
-        # Upload each file
-        results = []
-        for i, file in enumerate(files, 1):
-            try:
-                print(f"\nProcessing file {i}/{len(files)}: {file.filename}")
-                result = await upload_company_info(
-                    db=db,
-                    user_id=user_id,
-                    date_source=date_source,
-                    date_type=date_type,
-                    year=year,
-                    file=file
-                )
-                results.append({
-                    "filename": file.filename,
-                    "status": "success",
-                    "result": result
-                })
-                print(f"Successfully uploaded: {file.filename}")
-            except Exception as e:
-                print(f"Error uploading {file.filename}: {str(e)}")
-                print(f"Stack trace: {traceback.format_exc()}")
-                results.append({
-                    "filename": file.filename,
-                    "status": "error",
-                    "error": str(e)
-                })
-
-        # Log final results
-        print("\nUpload Results:")
-        print(json.dumps(results, indent=2))
-        
-        # Check if any files failed
-        failed_files = [r for r in results if r["status"] == "error"]
-        if failed_files:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "message": "Some files failed to upload",
-                    "failed_files": failed_files
-                }
-            )
+        # Use the new batch upload function
+        result = await upload_company_info_batch(
+            db=db,
+            system_user_id=system_user_id,
+            user_id=real_user_id,
+            date_source=date_source,
+            date_type=date_type,
+            year=year,
+            files=files
+        )
 
         return {
             "status": "success",
             "message": f"Successfully uploaded {len(files)} files",
-            "results": results,
+            "result": result,
             "timestamp": datetime.now().isoformat()
         }
+
     except HTTPException as he:
         print(f"\nHTTP Exception during upload: {str(he.detail)}")
         raise
@@ -288,7 +278,79 @@ async def upload_company_data(
             detail=str(e)
         )
 
-def create_company_info_request(app):
+@router.post("/download-report/{system_user_id}")
+async def download_report(
+    system_user_id: int,
+    request: Request,
+    report_data: ReportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Handle report download request"""
+    try:
+        print("\n=== Starting Report Download ===")
+        print(f"System User ID: {system_user_id}")
+        print(f"Report Data: {json.dumps(report_data.dict(), indent=2)}")
+        
+        # Log full request details
+        await log_request_details(request, report_data.dict())
+        
+        # Check Redis connection
+        print("\nChecking Redis connection...")
+        check_redis_connection()
+        print("Redis connection verified")
+        
+        # Get and validate token
+        print("\nGetting token from cache...")
+        token = get_cached_token(system_user_id)
+        if not token:
+            error_msg = "Token not found. Please upload base info first."
+            print(f"Error: {error_msg}")
+            raise HTTPException(status_code=401, detail=error_msg)
+        print("Token retrieved successfully")
+        
+        # Validate parameters
+        print("\nValidating parameters...")
+        if report_data.dateSource not in [0, 1]:
+            error_msg = f"Invalid dateSource: {report_data.dateSource}"
+            print(error_msg)
+            raise HTTPException(status_code=400, detail=error_msg)
+            
+        if report_data.dateType not in [0, 1]:
+            error_msg = f"Invalid dateType: {report_data.dateType}"
+            print(error_msg)
+            raise HTTPException(status_code=400, detail=error_msg)
+            
+        if not 2000 <= report_data.year <= 2100:
+            error_msg = f"Invalid year: {report_data.year}"
+            print(error_msg)
+            raise HTTPException(status_code=400, detail=error_msg)
+        
+        print("\nAll validations passed, calling query_third_party_system")
+        result = await query_third_party_system(
+            db=db,
+            date_source=report_data.dateSource,
+            date_time=report_data.dateTime,
+            date_type=report_data.dateType,
+            year=report_data.year,
+            token=token,
+            current_user=current_user
+        )
+        
+        print("Query completed successfully")
+        print(f"Result: {json.dumps(result, indent=2)}")
+        return result
+        
+    except HTTPException as he:
+        print(f"\nHTTP Exception occurred: {str(he)}")
+        print(f"Stack trace: {traceback.format_exc()}")
+        raise he
+    except Exception as e:
+        print(f"\nUnexpected error occurred: {str(e)}")
+        print(f"Stack trace: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def create_company_info(app):
     """
     Function to set up the company info request routes
     """

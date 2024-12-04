@@ -1,17 +1,17 @@
 from fastapi import FastAPI, Request, HTTPException, Depends, status
-from fastapi.staticfiles import StaticFiles
+# from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from database import get_db
 import os
-from services.auth import check_redis_connection, get_cached_token, redis_client, clear_user_token
-from services.company_info import query_third_party_system
-import json
-from datetime import datetime
+from services.auth import check_redis_connection, clear_user_token
+# from services.company import query_third_party_system
+# import json
+# from datetime import datetime
 from models import User
-from utils.auth_utils import hash_password, verify_password, create_access_token, verify_access_token
+from utils.auth_utils import verify_password, create_access_token, get_current_user
 import logging
 import traceback
 from starlette.middleware.sessions import SessionMiddleware
@@ -44,10 +44,8 @@ from admin import create_admin
 admin = create_admin(app)
 
 # Create the company info request routes
-from company_info_request import create_company_info_request
-company_info = create_company_info_request(app)
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+from company_info import create_company_info
+company_info = create_company_info(app)
 
 @app.middleware("http")
 async def middleware_handler(request: Request, call_next):
@@ -94,17 +92,6 @@ async def middleware_handler(request: Request, call_next):
         logger.error(traceback.format_exc())
         raise
 
-# Dependency for getting the current user
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    payload = verify_access_token(token)
-    if not payload:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    user = db.query(User).filter(User.id == payload["user_id"]).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    return user
 
 @app.post("/token")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -134,16 +121,6 @@ async def logout(request: Request, current_user: User = Depends(get_current_user
     except Exception as e:
         logger.error(f"Error during logout: {str(e)}")
         raise HTTPException(status_code=500, detail="Error during logout")
-
-def log_request(message: str, **kwargs):
-    """Helper function to log requests with timestamp"""
-    timestamp = datetime.now().isoformat()
-    log_entry = {
-        "timestamp": timestamp,
-        "message": message,
-        **kwargs
-    }
-    logger.info(json.dumps(log_entry, indent=2))
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
@@ -206,44 +183,6 @@ async def login_user(request: Request, form_data: OAuth2PasswordRequestForm = De
     response.set_cookie(key="Authorization", value=f"Bearer {access_token}", httponly=True)
     
     return response
-
-@app.post("/api/download-report/{system_user_id}")
-async def download_report(system_user_id: int, request: Request, db: Session = Depends(get_db)):
-    """Handle report download request"""
-    try:
-        log_request("Starting download report request", system_user_id=system_user_id)
-        
-        body = await request.json()
-        log_request("Request parameters", parameters=body)
-        
-        token = get_cached_token(system_user_id)
-        if token:
-            log_request("Token retrieved from cache", 
-                       system_user_id=system_user_id,
-                       token_preview=f"{token[:10]}...")
-        else:
-            log_request("Error: Token not found")
-            raise HTTPException(status_code=401, detail="Token not found. Please upload base info first.")
-        
-        log_request("Calling query_third_party_system")
-        result = await query_third_party_system(
-            db=db,
-            date_source=body.get("dateSource"),
-            date_time=body.get("dateTime"),
-            date_type=body.get("dateType"),
-            year=body.get("year"),
-            token=token
-        )
-        
-        log_request("Query completed successfully", result=result)
-        return result
-        
-    except HTTPException as he:
-        log_request("HTTP Exception occurred", error=str(he), status_code=he.status_code)
-        raise he
-    except Exception as e:
-        log_request("Unexpected error occurred", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():

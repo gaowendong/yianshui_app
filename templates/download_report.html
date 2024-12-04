@@ -92,6 +92,11 @@
         #reportForm {
             display: none;
         }
+        .error {
+            color: #dc3545;
+            margin-top: 5px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -132,8 +137,8 @@
             <div class="form-group">
                 <label for="year">Year:</label>
                 <select id="year">
-                    <option value="0">Option 0</option>
-                    <option value="1">Option 1</option>
+                    <option value="2022">2022</option>
+                    <option value="2021">2021</option>
                 </select>
             </div>
 
@@ -170,6 +175,35 @@
             logsDiv.scrollTop = logsDiv.scrollHeight;
         }
 
+        function validateForm() {
+            const dateSource = parseInt(document.getElementById('dateSource').value);
+            const dateTime = document.getElementById('dateTime').value;
+            const dateType = parseInt(document.getElementById('dateType').value);
+            const year = parseInt(document.getElementById('year').value);
+
+            if (![0, 1].includes(dateSource)) {
+                log('Invalid dateSource value', 'error');
+                return false;
+            }
+
+            if (!dateTime && dateTime !== '0') {
+                log('Invalid dateTime value', 'error');
+                return false;
+            }
+
+            if (![0, 1].includes(dateType)) {
+                log('Invalid dateType value', 'error');
+                return false;
+            }
+
+            if (year < 2000 || year > 2100) {
+                log('Invalid year value', 'error');
+                return false;
+            }
+
+            return true;
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const systemUserId = localStorage.getItem('systemUserId');
             const authWarning = document.getElementById('authWarning');
@@ -194,23 +228,27 @@
                     return;
                 }
 
+                if (!validateForm()) {
+                    return;
+                }
+
                 log('Starting report download...');
                 log('Using System User ID: ' + systemUserId);
 
                 const params = {
                     dateSource: parseInt(document.getElementById('dateSource').value),
-                    dateTime: parseInt(document.getElementById('dateTime').value),
+                    dateTime: document.getElementById('dateTime').value,
                     dateType: parseInt(document.getElementById('dateType').value),
                     year: parseInt(document.getElementById('year').value)
                 };
 
                 log(`Request parameters: ${JSON.stringify(params, null, 2)}`);
 
-                // Make request to our backend endpoint
-                const response = await fetch(`/api/download-report/${systemUserId}`, {
+                const response = await fetch(`/api/v1/download-report/${systemUserId}`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
                     body: JSON.stringify(params)
                 });
@@ -239,6 +277,7 @@
                 }
             } catch (error) {
                 log(`Error: ${error.message}`, 'error');
+                console.error(error);
                 alert('An error occurred while downloading the report');
             }
         }

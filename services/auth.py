@@ -82,16 +82,26 @@ async def register_tenant(company_data: dict):
                     print(f"Token Data: {json.dumps(token_data, indent=2)}")
                     
                     redis_key = f"yas_token:{data['data']['systemUserId']}"
+                    
+                    # Ensure proper JSON formatting
+                    token_json = json.dumps(token_data, ensure_ascii=False)
+                    print(f"Formatted token JSON: {token_json}")
+                    
                     redis_client.setex(
                         redis_key,
                         ttl,
-                        json.dumps(token_data)
+                        token_json
                     )
                     
-                    # Verify token was stored
+                    # Verify token was stored correctly
                     stored_data = redis_client.get(redis_key)
                     if stored_data:
-                        print(f"\nVerified stored token data: {stored_data}")
+                        try:
+                            parsed_data = json.loads(stored_data)
+                            print(f"\nVerified stored token data: {json.dumps(parsed_data, indent=2)}")
+                        except json.JSONDecodeError as e:
+                            print(f"Error: Stored data is not valid JSON: {stored_data}")
+                            raise Exception(f"Failed to store valid JSON token: {e}")
                     else:
                         raise Exception("Failed to verify stored token")
                     
@@ -166,9 +176,10 @@ def get_cached_token(system_user_id: int) -> str:
             try:
                 data = json.loads(token_data)
                 print(f"Parsed token data: {json.dumps(data, indent=2)}")
-                return data['token']
+                return data.get('token')
             except json.JSONDecodeError as e:
                 print(f"Error parsing token data: {str(e)}")
+                print(f"Invalid token data: {token_data}")
                 return None
         
         print("No token found in cache")
@@ -199,11 +210,12 @@ def validate_token(token: str) -> bool:
                 try:
                     data = json.loads(token_data)
                     print(f"Found token data: {json.dumps(data, indent=2)}")
-                    if data['token'] == token:
+                    if data.get('token') == token:
                         print("Token validated successfully")
                         return True
                 except json.JSONDecodeError as e:
                     print(f"Error parsing token data for key {key}: {str(e)}")
+                    print(f"Invalid token data: {token_data}")
                     continue
         
         print("Token validation failed")
@@ -233,7 +245,7 @@ def decode_token(token: str) -> dict:
             if token_data:
                 try:
                     data = json.loads(token_data)
-                    if data['token'] == token:
+                    if data.get('token') == token:
                         print(f"Found token data: {json.dumps(data, indent=2)}")
                         return {
                             'user_id': data['systemUserId'],
@@ -242,6 +254,7 @@ def decode_token(token: str) -> dict:
                         }
                 except json.JSONDecodeError as e:
                     print(f"Error parsing token data for key {key}: {str(e)}")
+                    print(f"Invalid token data: {token_data}")
                     continue
         
         print("Token not found in Redis")
