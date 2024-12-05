@@ -1,7 +1,6 @@
-from fastapi import FastAPI, Request
 from sqladmin import Admin, ModelView
 from database import engine, SessionLocal
-from models import User, CompanyInfo, QueryResult, RiskReport
+from models import User, CompanyInfo, QueryResult, RiskReport, CompanyReport
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
@@ -19,9 +18,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# Create FastAPI app instance
-app = FastAPI()
 
 # Admin authentication class
 class AdminAuth(AuthenticationBackend):
@@ -249,11 +245,52 @@ class RiskReportAdmin(ModelView, model=RiskReport):
         'user'
     ]
 
-def create_admin(app):
-    # Import SECRET_KEY from main app
-    from main import SECRET_KEY
+class CompanyReportAdmin(ModelView, model=CompanyReport):
+    column_list = [
+        CompanyReport.id,
+        CompanyReport.user_id,
+        CompanyReport.company_tax_number,
+        CompanyReport.report_type,
+        CompanyReport.year,
+        CompanyReport.month,
+        CompanyReport.quarter,
+        CompanyReport.created_at,
+        CompanyReport.updated_at
+    ]
+    can_view_details = True
+    can_edit = False
+    can_create = False
+    can_delete = True
     
-    authentication_backend = AdminAuth(secret_key=SECRET_KEY)
+    def format_json(self, json_data):
+        try:
+            if isinstance(json_data, str):
+                json_data = json.loads(json_data)
+            return json.dumps(json_data, indent=2)
+        except:
+            return str(json_data)
+    
+    column_formatters = {
+        CompanyReport.report_data: lambda m, a: self.format_json(m.report_data)
+    }
+    
+    column_details_list = [
+        CompanyReport.id,
+        CompanyReport.user_id,
+        CompanyReport.company_tax_number,
+        CompanyReport.report_type,
+        CompanyReport.year,
+        CompanyReport.month,
+        CompanyReport.quarter,
+        CompanyReport.report_data,
+        CompanyReport.created_at,
+        CompanyReport.updated_at,
+        'user',
+        'company_info'
+    ]
+
+def create_admin(app, secret_key):
+    authentication_backend = AdminAuth(secret_key=secret_key)
     admin = Admin(
         app=app,
         engine=engine,
@@ -268,5 +305,6 @@ def create_admin(app):
     admin.add_view(CompanyInfoAdmin)
     admin.add_view(QueryResultAdmin)
     admin.add_view(RiskReportAdmin)
+    admin.add_view(CompanyReportAdmin)
     
     return admin

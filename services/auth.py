@@ -63,11 +63,14 @@ async def register_tenant(company_data: dict):
             
             if data.get('status') == 200:
                 print("\nRegistration successful, processing token...")
+                print(f"auth.py line 66: company data: {company_data}")
                 token_data = {
                     'token': data['data']['token'],
                     'systemUserId': data['data']['systemUserId'],
+                    'userId': company_data.get('userId'),  # Store the original user ID
                     'tenantId': data['data']['tenantId'],
-                    'expirationTime': data['data']['expirationTime']
+                    'expirationTime': data['data']['expirationTime'],
+                    'taxpayerNo': company_data.get('taxpayerNo')  # Store TIN with token data
                 }
                 
                 # Store token data in Redis with expiration
@@ -192,6 +195,39 @@ def get_cached_token(system_user_id: int) -> str:
         print(f"Stack trace: {traceback.format_exc()}")
         return None
 
+def get_cached_tin(system_user_id: int) -> str:
+    """
+    Get cached TIN from Redis
+    """
+    try:
+        print(f"\n=== Getting Cached TIN ===")
+        print(f"Looking for TIN with system_user_id: {system_user_id}")
+        
+        check_redis_connection()
+        
+        redis_key = f"yas_token:{system_user_id}"
+        token_data = redis_client.get(redis_key)
+        
+        if token_data:
+            try:
+                data = json.loads(token_data)
+                tin = data.get('taxpayerNo')
+                print(f"Retrieved TIN: {tin}")
+                return tin
+            except json.JSONDecodeError as e:
+                print(f"Error parsing token data: {str(e)}")
+                return None
+        
+        print("No TIN found in cache")
+        return None
+    except redis.RedisError as e:
+        print(f"Redis error retrieving TIN: {str(e)}")
+        return None
+    except Exception as e:
+        print(f"Error retrieving TIN from Redis: {str(e)}")
+        print(f"Stack trace: {traceback.format_exc()}")
+        return None
+
 def validate_token(token: str) -> bool:
     """
     Validate if token exists in Redis cache
@@ -211,7 +247,7 @@ def validate_token(token: str) -> bool:
                     data = json.loads(token_data)
                     print(f"Found token data: {json.dumps(data, indent=2)}")
                     if data.get('token') == token:
-                        print("Token validated successfully")
+                        print("in auth line 250, Token validated successfully")
                         return True
                 except json.JSONDecodeError as e:
                     print(f"Error parsing token data for key {key}: {str(e)}")
@@ -250,7 +286,8 @@ def decode_token(token: str) -> dict:
                         return {
                             'user_id': data['systemUserId'],
                             'tenant_id': data['tenantId'],
-                            'expiration_time': data['expirationTime']
+                            'expiration_time': data['expirationTime'],
+                            'taxpayer_no': data.get('taxpayerNo')  # Include TIN in decoded data
                         }
                 except json.JSONDecodeError as e:
                     print(f"Error parsing token data for key {key}: {str(e)}")

@@ -8,9 +8,9 @@ import traceback
 
 from database import SessionLocal
 from models import User
-from services.company import upload_company_info, upload_company_info_batch, query_third_party_system
-from services.auth import register_tenant, check_redis_connection, redis_client, decode_token, get_cached_token
-from utils.auth_utils import get_current_user
+from services.company import upload_company_info_batch, query_third_party_system
+from services.auth import register_tenant, check_redis_connection, redis_client, decode_token, get_cached_token, get_cached_tin
+from utils.auth_utils import verify_user_ids
 
 # Initialize router
 router = APIRouter()
@@ -94,6 +94,44 @@ async def test_redis():
             detail=f"Redis test failed: {str(e)}"
         )
 
+@router.get("/get-tin/{system_user_id}")
+async def get_tin(system_user_id: int, request: Request, db: Session = Depends(get_db)):
+    """
+    Get the taxpayer identification number (TIN) for a system user
+    """
+    try:
+        print(f"\n=== Getting TIN for System User ID: {system_user_id} ===")
+        
+        # Verify user IDs and get database user
+        real_user_id, database_user = await verify_user_ids(system_user_id, request, db)
+        print(f"Database User ID: {real_user_id}")
+        print(f"Database Username: {database_user.username}")
+        
+        # Get TIN from Redis
+        tin = get_cached_tin(system_user_id)
+        if not tin:
+            error_msg = "Taxpayer number not found. Please register first."
+            print(f"Error: {error_msg}")
+            raise HTTPException(status_code=404, detail=error_msg)
+            
+        print(f"Found TIN: {tin}")
+        return {
+            "status": "success",
+            "tin": tin,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException as he:
+        print(f"\nHTTP Exception getting TIN: {str(he)}")
+        raise
+    except Exception as e:
+        print(f"\nUnexpected error getting TIN: {str(e)}")
+        print(f"Stack trace: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get TIN: {str(e)}"
+        )
+
 # Login request model
 class TenantRegistration(BaseModel):
     companyName: str
@@ -125,23 +163,9 @@ async def register_new_tenant(request: Request, registration_data: TenantRegistr
         check_redis_connection()
         print("Redis connection verified")
         
+        # Register tenant - this will handle Redis storage
         result = await register_tenant(registration_data.dict())
         print(f"Registration successful: {json.dumps(result, indent=2)}")
-        
-        # Store user_id in session
-        request.session["user_id"] = result["systemUserId"]
-        print(f"Stored user_id in session: {result['systemUserId']}")
-        
-        # Store token in Redis with proper key format
-        redis_key = f"yas_token:{result['systemUserId']}"
-        token_data = {
-            "token": result["token"],
-            "systemUserId": result["systemUserId"],
-            "tenantId": result["tenantId"],
-            "expirationTime": result["expirationTime"]
-        }
-        redis_client.set(redis_key, json.dumps(token_data))
-        print(f"Stored token data in Redis with key: {redis_key}")
         
         return {
             "status": 200,
@@ -166,8 +190,7 @@ async def upload_company_data(
     date_type: Annotated[int, Form()],
     year: Annotated[int, Form()],
     files: List[UploadFile] = File(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """
     Upload company information files with required parameters
@@ -175,23 +198,17 @@ async def upload_company_data(
     try:
         print("\n=== Starting Company Info Upload ===")
         print(f"Timestamp: {datetime.now().isoformat()}")
+        print(f"System User ID (Yi'an session): {system_user_id}")
         
-        # Use the current user's real user ID
-        real_user_id = current_user.id
-
-        # Verify user authentication
-        token = get_cached_token(system_user_id)
-        if not token:
-            raise HTTPException(status_code=401, detail="User not authenticated. Please login first.")
-        
-        # Get token data to verify user
-        token_data = json.loads(redis_client.get(f"yas_token:{system_user_id}"))
-        if token_data['systemUserId'] != system_user_id:
-            raise HTTPException(status_code=403, detail="Access denied. User ID mismatch.")
+        # Verify both user IDs and get database user
+        real_user_id, database_user = await verify_user_ids(system_user_id, request, db)
+        print(f"Database User ID: {real_user_id}")
+        print(f"Database Username: {database_user.username}")
         
         # Log request details
         await log_request_details(request, {
-            "user_id": real_user_id,
+            "system_user_id": system_user_id,
+            "database_user_id": real_user_id,
             "date_source": date_source,
             "date_type": date_type,
             "year": year,
@@ -283,14 +300,18 @@ async def download_report(
     system_user_id: int,
     request: Request,
     report_data: ReportRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Handle report download request"""
     try:
         print("\n=== Starting Report Download ===")
         print(f"System User ID: {system_user_id}")
         print(f"Report Data: {json.dumps(report_data.dict(), indent=2)}")
+        
+        # Verify both user IDs and get database user
+        real_user_id, database_user = await verify_user_ids(system_user_id, request, db)
+        print(f"Database User ID: {real_user_id}")
+        print(f"Database Username: {database_user.username}")
         
         # Log full request details
         await log_request_details(request, report_data.dict())
@@ -334,7 +355,7 @@ async def download_report(
             date_type=report_data.dateType,
             year=report_data.year,
             token=token,
-            current_user=current_user
+            current_user=database_user
         )
         
         print("Query completed successfully")

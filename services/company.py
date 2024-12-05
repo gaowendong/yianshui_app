@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from redis import Redis
 
 from models import User, CompanyInfo
-from services.auth import get_cached_token, validate_token
+from services.auth import get_cached_token, validate_token, get_cached_tin
 
 # Initialize Redis client
 redis_client = Redis(host='localhost', port=6379, db=0)
@@ -42,7 +42,14 @@ async def upload_company_info_batch(db: Session, system_user_id: int, user_id: i
             print(f"Error: {error_msg}")
             raise HTTPException(status_code=401, detail=error_msg)
 
-        print(f"Found token for user {user_id}")
+        # Get TIN from Redis
+        tin = get_cached_tin(system_user_id)
+        if not tin:
+            error_msg = "Taxpayer number not found. Please register first."
+            print(f"Error: {error_msg}")
+            raise HTTPException(status_code=401, detail=error_msg)
+
+        print(f"Found token and TIN for user {user_id}")
         print("\nValidating token...")
         if not validate_token(token):
             error_msg = "Invalid or expired token. Please login again."
@@ -64,7 +71,8 @@ async def upload_company_info_batch(db: Session, system_user_id: int, user_id: i
         params = {
             'dateSource': str(date_source),
             'dateType': str(date_type),
-            'year': str(year)
+            'year': str(year),
+            'taxpayerNo': tin  # Include TIN in API request
         }
         headers = {'token': token}
 
@@ -128,6 +136,7 @@ async def upload_company_info_batch(db: Session, system_user_id: int, user_id: i
                     "dateSource": date_source,
                     "dateType": date_type,
                     "year": year,
+                    "taxpayerNo": tin,  # Include TIN in upload parameters
                     "timestamp": datetime.now().isoformat()
                 }
                 redis_key = f"upload_params:{user_id}"
@@ -141,9 +150,10 @@ async def upload_company_info_batch(db: Session, system_user_id: int, user_id: i
                     try:
                         company_info = CompanyInfo(
                             company_name=file.filename,
-                            post_data=json.dumps(upload_params),  # Store upload parameters
-                            post_initiator_user_id=user.id,  # Use the verified user's ID
-                            status=True  # Upload was successful
+                            tax_number=tin,  # Store TIN in CompanyInfo record
+                            post_data=json.dumps(upload_params),
+                            post_initiator_user_id=user.id,
+                            status=True
                         )
                         db.add(company_info)
                         db.commit()
@@ -188,22 +198,47 @@ async def upload_company_info_batch(db: Session, system_user_id: int, user_id: i
             detail=f"Internal server error during company info upload: {str(e)}"
         )
 
-async def upload_company_info(db: Session, system_user_id: int, user_id: int, date_source: int, date_type: int, year: int, file: UploadFile):
-    """
-    Upload a single company information file to external API and store parameters in Redis
-    """
-    # ... existing code for single file upload ...
-    pass
-
 async def query_third_party_system(db: Session, date_source: int, date_time: str, date_type: int, year: int, token: str, current_user: User):
     """
     Query third party system for company information
     """
     print("\n=== Starting Third Party System Query ===")
     try:
-        # Validate token
-        if not validate_token(token):
-            error_msg = "Invalid or expired token. Please login again."
+        # Validate token and get TIN
+        print("\n=== Validating Token ===")
+        print(f"Validating token: {token}")
+
+        print("\n=== Checking Redis Connection ===")
+        redis_client.ping()
+        print("Redis connection check successful")
+
+        # Get token data from Redis by scanning for the token
+        token_data = None
+        for key in redis_client.scan_iter("yas_token:*"):
+            print(f"111 Checking key: {key}")
+            token_data_str = redis_client.get(key)
+            if token_data_str:
+                try:
+                    data = json.loads(token_data_str)
+                    print(f"Found token data: {json.dumps(data, indent=2)}")
+                    print(f"line 224 token in json {data.get('token')}")
+                    print(f"line 225 token: {token}")
+                    if data.get("token") == token:
+                        token_data = data
+                        break
+                except json.JSONDecodeError:
+                    continue
+
+        if not token_data:
+            error_msg = "Token data not found in Redis. Please login again."
+            print(f"Error: {error_msg}")
+            raise HTTPException(status_code=401, detail=error_msg)
+
+        print("in company line 235, Token validated successfully")
+
+        tin = token_data.get('taxpayerNo')
+        if not tin:
+            error_msg = "Taxpayer number not found in token data. Please register first."
             print(f"Error: {error_msg}")
             raise HTTPException(status_code=401, detail=error_msg)
 
@@ -215,7 +250,8 @@ async def query_third_party_system(db: Session, date_source: int, date_time: str
             'dateSource': str(date_source) if date_source is not None else '0',
             'dateTime': str(date_time) if date_time is not None else '0',
             'dateType': str(date_type) if date_type is not None else '0',
-            'year': str(year) if year is not None else str(datetime.now().year)
+            'year': str(year) if year is not None else str(datetime.now().year),
+            'taxpayerNo': tin  # Include TIN in API request
         }
         
         # Add token to headers
@@ -233,12 +269,11 @@ async def query_third_party_system(db: Session, date_source: int, date_time: str
 
         # Make request to the external API with increased timeout
         timeout = httpx.Timeout(60.0, connect=30.0)
-        async with httpx.AsyncClient(timeout=timeout, verify=False) as client:  # Added verify=False to bypass SSL verification
+        async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
             try:
-                # Changed from GET to POST request
                 response = await client.post(
                     base_url,
-                    json=params,  # Send parameters as JSON in request body
+                    json=params,
                     headers=headers,
                     timeout=timeout
                 )

@@ -36,10 +36,9 @@ class CompanyInfo(Base):
     query_results = relationship("QueryResult", back_populates="company_info")
     company_reports = relationship("CompanyReport", back_populates="company_info")
 
-    # Add unique constraint and index for tax_number
+    # Add index for tax_number but remove unique constraint
     __table_args__ = (
-        UniqueConstraint('tax_number', name='uix_tax_number'),
-        Index('ix_company_info_tax_number', 'tax_number', unique=True),
+        Index('ix_company_info_tax_number', 'tax_number'),
     )
 
 class QueryResult(Base):

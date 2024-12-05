@@ -103,7 +103,7 @@
         {% if error %}
             <div class="error-message">{{ error }}</div>
         {% endif %}
-        <form method="post" action="/login">
+        <form id="loginForm">
             <div class="form-group">
                 <label for="username">Username</label>
                 <input type="text" id="username" name="username" required autocomplete="username">
@@ -115,5 +115,66 @@
             <button type="submit">Sign In</button>
         </form>
     </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Remove any existing error messages
+            const existingError = document.querySelector('.error-message');
+            if (existingError) {
+                existingError.remove();
+            }
+
+            // Get form data
+            const formData = new FormData(this);
+            
+            try {
+                console.log('Sending login request...');
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                console.log('Login response:', data);
+
+                if (response.ok && data.status === 'success') {
+                    console.log('Login successful');
+                    
+                    // Store the access token in localStorage
+                    const token = data.access_token.replace('Bearer ', '');
+                    localStorage.setItem('access_token', token);
+                    console.log('Access token stored');
+
+                    // Store system user ID if provided
+                    if (data.systemUserId) {
+                        localStorage.setItem('systemUserId', data.systemUserId);
+                        console.log('System User ID stored:', data.systemUserId);
+                    } else {
+                        console.log('No system user ID provided - user may need to register first');
+                    }
+
+                    // Redirect to the specified URL
+                    console.log('Redirecting to:', data.redirect_url);
+                    window.location.href = data.redirect_url;
+                } else {
+                    // Show error message
+                    const errorMessage = data.message || 'Login failed';
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error-message';
+                    errorDiv.textContent = errorMessage;
+                    this.insertBefore(errorDiv, this.firstChild);
+                    console.error('Login failed:', errorMessage);
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = 'Login failed. Please try again.';
+                this.insertBefore(errorDiv, this.firstChild);
+            }
+        });
+    </script>
 </body>
 </html>

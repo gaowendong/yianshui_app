@@ -269,6 +269,9 @@
                 e.preventDefault();
                 
                 const formData = new FormData();
+                const systemUserId = localStorage.getItem('systemUserId');
+                
+                // Add form data
                 formData.append('date_source', document.getElementById('dateSource').value);
                 formData.append('date_type', document.getElementById('dateType').value);
                 formData.append('year', document.getElementById('year').value);
@@ -304,7 +307,10 @@
 
                     const response = await fetch(`/api/v1/upload-company-info/${systemUserId}`, {
                         method: 'POST',
-                        body: formData
+                        body: formData,
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                        }
                     });
 
                     const data = await response.json();

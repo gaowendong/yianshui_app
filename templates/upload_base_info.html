@@ -207,7 +207,6 @@
 
             <div class="form-group">
                 <label for="taxpayerNo">纳税人识别号:</label>
-                <!-- <input type="text" id="taxpayerNo" value="HJKSH8234203JDSKADHS" required> -->
                 <input type="text" id="taxpayerNo" value="TaxpayerId001" required>
             </div>
 
@@ -219,6 +218,12 @@
     </div>
 
     <script>
+        // Check if user is authenticated
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = '/login';
+        }
+
         function log(message, type = 'info') {
             const logDiv = document.getElementById('requestLog');
             const timestamp = new Date().toISOString();
@@ -242,7 +247,11 @@
 
             try {
                 log('Checking Redis connection through backend API...');
-                const response = await fetch('/api/v1/test-redis');
+                const response = await fetch('/api/v1/test-redis', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -295,10 +304,10 @@
                 const response = await fetch('/api/v1/register', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify(formData),
-                    credentials: 'include'
+                    body: JSON.stringify(formData)
                 });
 
                 if (!response.ok) {
@@ -320,7 +329,7 @@
 
                     // Redirect to upload page after successful registration
                     setTimeout(() => {
-                        window.location.href = '/upload';
+                        window.location.href = '/upload_company_info';
                     }, 4000);
                 } else {
                     throw new Error(data.msg || 'Registration failed');

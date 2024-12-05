@@ -1,11 +1,15 @@
 # create_sample_users.py
+import sys
+import os
+# Add the parent directory to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from models import User
 from database import engine
 from sqlalchemy.orm import sessionmaker
 from utils.auth_utils import hash_password, verify_password
 import bcrypt
 import logging
-import sys
 from sqlalchemy import text
 
 # Set up logging
@@ -67,7 +71,7 @@ def create_sample_users():
         for user_data in users_to_create:
             try:
                 logger.info(f"Creating user: {user_data['username']}")
-                # Hash password properly
+                # Hash password using bcrypt
                 hashed_password = hash_password(user_data["password"])
                 logger.debug(f"Password hashed successfully for {user_data['username']}")
                 
@@ -117,7 +121,7 @@ def create_sample_users():
         for user_data in second_level_users:
             try:
                 logger.info(f"Creating user: {user_data['username']}")
-                # Hash password properly
+                # Hash password using bcrypt
                 hashed_password = hash_password(user_data["password"])
                 logger.debug(f"Password hashed successfully for {user_data['username']}")
                 

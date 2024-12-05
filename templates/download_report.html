@@ -233,6 +233,27 @@
             logsDiv.scrollTop = logsDiv.scrollHeight;
         }
 
+        async function fetchAndSetTIN(systemUserId) {
+            try {
+                const token = localStorage.getItem('access_token');
+                const response = await fetch(`/api/v1/get-tin/${systemUserId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'success') {
+                    document.getElementById('taxNumber').value = data.tin;
+                    log('Successfully loaded company tax number', 'success');
+                } else {
+                    log('Failed to load company tax number: ' + (data.detail || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                log('Error loading company tax number: ' + error.message, 'error');
+            }
+        }
+
         function validateForm() {
             const dateSource = parseInt(document.getElementById('dateSource').value);
             const dateTime = document.getElementById('dateTime').value;
@@ -290,6 +311,9 @@
                 log('Found System User ID: ' + systemUserId, 'success');
                 authWarning.style.display = 'none';
                 reportForm.style.display = 'block';
+                
+                // Fetch and set the TIN
+                fetchAndSetTIN(systemUserId);
             }
 
             // Add event listener for report type changes
@@ -300,8 +324,15 @@
         async function downloadReport() {
             try {
                 const systemUserId = localStorage.getItem('systemUserId');
+                const token = localStorage.getItem('access_token');
+                
                 if (!systemUserId) {
                     log('Error: No System User ID found', 'error');
+                    return;
+                }
+
+                if (!token) {
+                    log('Error: No access token found', 'error');
                     return;
                 }
 
@@ -325,7 +356,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify(params)
                 });
@@ -371,8 +403,15 @@
                 }
 
                 const systemUserId = localStorage.getItem('systemUserId');
+                const token = localStorage.getItem('access_token');
+                
                 if (!systemUserId) {
                     log('Error: No System User ID found', 'error');
+                    return;
+                }
+
+                if (!token) {
+                    log('Error: No access token found', 'error');
                     return;
                 }
 
@@ -410,7 +449,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify(storeData)
                 });
