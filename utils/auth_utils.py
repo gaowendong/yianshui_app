@@ -1,7 +1,7 @@
 import bcrypt
 import jwt
 from datetime import datetime, timedelta
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from database import get_db
@@ -104,3 +104,50 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     
     return user
+
+async def get_system_user_id_from_request(request: Request, db: Session = Depends(get_db)) -> int:
+    """
+    Extract and verify the system user ID from the request.
+    
+    Args:
+        request: The FastAPI request object
+        db: The database session
+        
+    Returns:
+        int: The verified system user ID
+        
+    Raises:
+        HTTPException: If authentication fails or user ID is invalid
+    """
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authorization header"
+        )
+    
+    token = auth_header.split(' ')[1]
+    payload = verify_access_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
+    
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not found in token"
+        )
+    
+    # Verify user exists in database
+    from models import User  # Import here to avoid circular imports
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    return user_id

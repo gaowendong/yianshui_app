@@ -1,256 +1,194 @@
-from fastapi import FastAPI, Request, HTTPException, Depends, status
-# from fastapi.staticfiles import StaticFiles
+from datetime import datetime
+from typing import List, Optional
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, Form, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from database import get_db
-import os
-from services.auth import check_redis_connection, clear_user_token
-# from services.company import query_third_party_system
-# import json
-# from datetime import datetime
-from models import User
-from utils.auth_utils import verify_password, create_access_token, get_current_user
-import logging
-import traceback
-from starlette.middleware.sessions import SessionMiddleware
+from pydantic import BaseModel
+from database import SessionLocal, engine
+import models
+from services.company import upload_company_info_batch, query_third_party_system
+from services.auth import get_cached_token
+from utils.auth_utils import get_system_user_id_from_request
 
-# Set up logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# Secret key for both session middleware and admin auth
-SECRET_KEY = "supersecretkey"
-
-# FastAPI app
-app = FastAPI(title="易安税系统")
-
-# Add SessionMiddleware
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=SECRET_KEY,
-    max_age=3600  # Session expiry time in seconds
-)
-
-# Mount templates directory
+app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-# Create the admin panel
-from admin import create_admin
-admin = create_admin(app)
-
-# Create the company info request routes
-from company_info import create_company_info
-company_info = create_company_info(app)
-
-@app.middleware("http")
-async def middleware_handler(request: Request, call_next):
-    """Combined middleware for logging and Redis checks"""
+# Database Dependency
+def get_db():
+    db = SessionLocal()
     try:
-        # Log request
-        logger.info(f"Request: {request.method} {request.url}")
-        if request.method in ["POST", "PUT"]:
-            try:
-                body = await request.body()
-                if body:
-                    logger.debug(f"Request body: {body.decode()}")
-            except Exception as e:
-                logger.debug(f"Could not log request body: {str(e)}")
+        yield db
+    finally:
+        db.close()
 
-        # Check for auth token in cookies and set header
-        auth_cookie = request.cookies.get("Authorization")
-        if auth_cookie and not request.headers.get("Authorization"):
-            request.headers.__dict__["_list"].append(
-                (b"authorization", auth_cookie.encode())
-            )
+# Pydantic models for request validation
+class StoreReportRequest(BaseModel):
+    user_id: int
+    company_tax_number: str
+    report_type: str
+    year: int
+    month: Optional[int] = None
+    quarter: Optional[int] = None
+    report_data: dict
 
-        # Check Redis for protected paths
-        protected_paths = ["/upload", "/api/v1/register", "/api/v1/upload-company-info", "/download-report"]
-        if request.url.path in protected_paths:
-            try:
-                check_redis_connection()
-            except HTTPException as he:
-                if request.url.path.startswith("/api/"):
-                    return JSONResponse(
-                        status_code=he.status_code,
-                        content={"detail": str(he.detail)}
-                    )
-                return RedirectResponse(url="/upload_base_info")
-        
-        # Process request
-        response = await call_next(request)
-        
-        # Log response
-        logger.info(f"Response status: {response.status_code}")
-        return response
-    except Exception as e:
-        logger.error(f"Error in middleware: {str(e)}")
-        logger.error(traceback.format_exc())
-        raise
-
-
-@app.post("/token")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    access_token = create_access_token(data={"user_id": user.id})
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@app.get("/logout")
-async def logout(request: Request, current_user: User = Depends(get_current_user)):
-    """Handle user logout"""
-    try:
-        # Clear Redis token
-        clear_user_token(current_user.id)
-        
-        # Clear session
-        request.session.clear()
-        
-        # Create response that redirects to login
-        response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-        
-        # Clear auth cookie
-        response.delete_cookie(key="Authorization")
-        
-        return response
-    except Exception as e:
-        logger.error(f"Error during logout: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error during logout")
-
+# Routes
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    """Redirect to upload base info page"""
-    return RedirectResponse(url="/upload_base_info")
-
-@app.get("/upload_base_info", response_class=HTMLResponse)
-async def upload_base_info_page(request: Request, current_user: User = Depends(get_current_user)):
-    """Serve the upload base info page"""
-    try:
-        return templates.TemplateResponse("upload_base_info.html", {"request": request, "user": current_user})
-    except HTTPException:
-        return RedirectResponse(url="/login")
-
-@app.get("/upload", response_class=HTMLResponse)
-async def upload_page(request: Request, current_user: User = Depends(get_current_user)):
-    """Serve the upload page"""
-    try:
-        check_redis_connection()
-        return templates.TemplateResponse("upload_company_info.html", {"request": request, "user": current_user})
-    except HTTPException:
-        return RedirectResponse(url="/login")
-
-@app.get("/download-report", response_class=HTMLResponse)
-async def download_report_page(request: Request, current_user: User = Depends(get_current_user)):
-    """Serve the download report page"""
-    try:
-        check_redis_connection()
-        return templates.TemplateResponse("download_report.html", {"request": request, "user": current_user})
-    except HTTPException:
-        return RedirectResponse(url="/login")
+    return templates.TemplateResponse("login.html", {"request": request})
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    """Serve the login page"""
     return templates.TemplateResponse("login.html", {"request": request})
 
-@app.post("/login", response_class=HTMLResponse)
-async def login_user(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """Process login form"""
-    user = db.query(User).filter(User.username == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.password):
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid username or password"})
-    
-    access_token = create_access_token(data={"user_id": user.id})
-    
-    # Set up session data for admin users
-    if user.is_admin:
-        request.session.update({
-            "token": user.username,
-            "admin": True,
-            "user_id": user.id
-        })
-        logger.debug(f"Set admin session data for user: {user.username}")
-        redirect_url = "/admin"
-    else:
-        redirect_url = "/upload_base_info"
-    
-    response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
-    response.set_cookie(key="Authorization", value=f"Bearer {access_token}", httponly=True)
-    
-    return response
+@app.get("/upload_base_info", response_class=HTMLResponse)
+async def upload_base_info_page(request: Request):
+    return templates.TemplateResponse("upload_base_info.html", {"request": request})
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
+@app.get("/upload_company_info", response_class=HTMLResponse)
+async def upload_company_info_page(request: Request):
+    return templates.TemplateResponse("upload_company_info.html", {"request": request})
+
+@app.get("/download-report", response_class=HTMLResponse)
+async def download_report_page(request: Request):
+    return templates.TemplateResponse("download_report.html", {"request": request})
+
+@app.post("/api/v1/upload-company-info/{system_user_id}")
+async def upload_company_info(
+    system_user_id: int,
+    user_id: int = Form(...),
+    date_source: int = Form(...),
+    date_type: int = Form(...),
+    year: int = Form(...),
+    files: List[UploadFile] = None,
+    db: Session = Depends(get_db)
+):
     try:
-        check_redis_connection()
-        redis_status = "healthy"
-    except:
-        redis_status = "unhealthy"
-
-    return {
-        "status": "healthy",
-        "service": "Yi'an Tax System",
-        "components": {
-            "redis": redis_status
-        }
-    }
-
-@app.get("/routes")
-async def get_routes():
-    """Get a list of all routes in the FastAPI app"""
-    routes = []
-    for route in app.routes:
-        routes.append({
-            "path": route.path,
-            "methods": route.methods if hasattr(route, "methods") else None
-        })
-    return {"routes": routes}
-
-# Error handlers
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """Handle HTTP exceptions"""
-    logger.error(f"HTTP Exception: {exc.status_code} - {exc.detail}")
-    if request.url.path.startswith("/api/"):
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": str(exc.detail)}
+        result = await upload_company_info_batch(
+            db=db,
+            system_user_id=system_user_id,
+            user_id=user_id,
+            date_source=date_source,
+            date_type=date_type,
+            year=year,
+            files=files
         )
-    
-    return templates.TemplateResponse(
-        "error.html",
-        {
-            "request": request,
-            "status_code": exc.status_code,
-            "detail": exc.detail
-        },
-        status_code=exc.status_code
-    )
+        return JSONResponse(content=result)
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    """Handle general exceptions"""
-    logger.error(f"General Exception: {str(exc)}")
-    logger.error(traceback.format_exc())
-    
-    if request.url.path.startswith("/api/"):
-        return JSONResponse(
-            status_code=500,
-            content={"detail": str(exc)}
+@app.post("/api/v1/download-report/{system_user_id}")
+async def download_report(
+    system_user_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    try:
+        # Get request body
+        body = await request.json()
+        date_source = body.get('dateSource')
+        date_time = body.get('dateTime')
+        date_type = body.get('dateType')
+        year = body.get('year')
+
+        # Get token from cache
+        token = get_cached_token(system_user_id)
+        if not token:
+            raise HTTPException(status_code=401, detail="Token not found. Please login first.")
+
+        # Get current user
+        current_user = db.query(models.User).filter(models.User.id == system_user_id).first()
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Query third party system
+        result = await query_third_party_system(
+            db=db,
+            date_source=date_source,
+            date_time=date_time,
+            date_type=date_type,
+            year=year,
+            token=token,
+            current_user=current_user
         )
-    
-    return templates.TemplateResponse(
-        "error.html",
-        {
-            "request": request,
-            "status_code": 500,
-            "detail": str(exc)
-        },
-        status_code=500
-    )
+        return JSONResponse(content=result)
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/store-report")
+async def store_report(
+    report_data: StoreReportRequest,
+    db: Session = Depends(get_db)
+):
+    try:
+        # Validate report type
+        valid_report_types = ['annual', 'monthly', 'quarterly']
+        if report_data.report_type not in valid_report_types:
+            raise HTTPException(status_code=400, detail="Invalid report type")
+
+        # Validate month/quarter based on report type
+        if report_data.report_type == 'monthly' and (not report_data.month or report_data.month < 1 or report_data.month > 12):
+            raise HTTPException(status_code=400, detail="Invalid month for monthly report")
+        if report_data.report_type == 'quarterly' and (not report_data.quarter or report_data.quarter < 1 or report_data.quarter > 4):
+            raise HTTPException(status_code=400, detail="Invalid quarter for quarterly report")
+
+        # Check if company exists
+        company = db.query(models.CompanyInfo).filter(
+            models.CompanyInfo.tax_number == report_data.company_tax_number
+        ).first()
+        if not company:
+            # Create new company record if it doesn't exist
+            company = models.CompanyInfo(
+                company_name="Company " + report_data.company_tax_number,  # Placeholder name
+                tax_number=report_data.company_tax_number,
+                post_initiator_user_id=report_data.user_id,
+                status=True
+            )
+            db.add(company)
+            db.commit()
+            db.refresh(company)
+
+        # Check if report already exists
+        existing_report = db.query(models.CompanyReport).filter(
+            models.CompanyReport.company_tax_number == report_data.company_tax_number,
+            models.CompanyReport.report_type == report_data.report_type,
+            models.CompanyReport.year == report_data.year,
+            models.CompanyReport.month == report_data.month,
+            models.CompanyReport.quarter == report_data.quarter
+        ).first()
+
+        if existing_report:
+            # Update existing report
+            existing_report.report_data = report_data.report_data
+            existing_report.updated_at = datetime.now()
+            db.commit()
+            return {"message": "Report updated successfully", "report_id": existing_report.id}
+        else:
+            # Create new report
+            new_report = models.CompanyReport(
+                user_id=report_data.user_id,
+                company_tax_number=report_data.company_tax_number,
+                report_type=report_data.report_type,
+                year=report_data.year,
+                month=report_data.month,
+                quarter=report_data.quarter,
+                report_data=report_data.report_data
+            )
+            db.add(new_report)
+            db.commit()
+            db.refresh(new_report)
+            return {"message": "Report stored successfully", "report_id": new_report.id}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to store report: {str(e)}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

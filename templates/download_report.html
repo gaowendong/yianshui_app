@@ -43,12 +43,17 @@
             margin-bottom: 5px;
             font-weight: bold;
         }
-        select {
+        select, input {
             width: 100%;
             padding: 8px;
             margin-bottom: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
         }
         button {
             background-color: #4CAF50;
@@ -60,6 +65,12 @@
         }
         button:hover {
             background-color: #45a049;
+        }
+        button.store-btn {
+            background-color: #007bff;
+        }
+        button.store-btn:hover {
+            background-color: #0056b3;
         }
         .results {
             margin-top: 20px;
@@ -142,7 +153,52 @@
                 </select>
             </div>
 
-            <button onclick="downloadReport()">Download Report</button>
+            <div class="form-group">
+                <label for="taxNumber">Company Tax Number:</label>
+                <input type="text" id="taxNumber" required placeholder="Enter company tax number">
+            </div>
+
+            <div class="form-group">
+                <label for="reportType">Report Type:</label>
+                <select id="reportType">
+                    <option value="annual">Annual Report</option>
+                    <option value="monthly">Monthly Report</option>
+                    <option value="quarterly">Quarterly Report</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="monthGroup" style="display: none;">
+                <label for="month">Month:</label>
+                <select id="month">
+                    <option value="1">January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="quarterGroup" style="display: none;">
+                <label for="quarter">Quarter:</label>
+                <select id="quarter">
+                    <option value="1">Q1</option>
+                    <option value="2">Q2</option>
+                    <option value="3">Q3</option>
+                    <option value="4">Q4</option>
+                </select>
+            </div>
+
+            <div class="button-group">
+                <button onclick="downloadReport()">Download Report</button>
+                <button onclick="storeReport()" class="store-btn">Store Report</button>
+            </div>
         </div>
 
         <div id="results" class="results">
@@ -159,6 +215,8 @@
     </div>
 
     <script>
+        let currentReportData = null;
+
         function log(message, type = 'info') {
             const logsDiv = document.getElementById('logs');
             const timestamp = new Date().toISOString();
@@ -180,6 +238,7 @@
             const dateTime = document.getElementById('dateTime').value;
             const dateType = parseInt(document.getElementById('dateType').value);
             const year = parseInt(document.getElementById('year').value);
+            const taxNumber = document.getElementById('taxNumber').value.trim();
 
             if (![0, 1].includes(dateSource)) {
                 log('Invalid dateSource value', 'error');
@@ -201,7 +260,21 @@
                 return false;
             }
 
+            if (!taxNumber) {
+                log('Tax number is required', 'error');
+                return false;
+            }
+
             return true;
+        }
+
+        function updateFormFields() {
+            const reportType = document.getElementById('reportType').value;
+            const monthGroup = document.getElementById('monthGroup');
+            const quarterGroup = document.getElementById('quarterGroup');
+
+            monthGroup.style.display = reportType === 'monthly' ? 'block' : 'none';
+            quarterGroup.style.display = reportType === 'quarterly' ? 'block' : 'none';
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -218,6 +291,10 @@
                 authWarning.style.display = 'none';
                 reportForm.style.display = 'block';
             }
+
+            // Add event listener for report type changes
+            document.getElementById('reportType').addEventListener('change', updateFormFields);
+            updateFormFields();
         });
 
         async function downloadReport() {
@@ -259,6 +336,9 @@
                 log(`Response data: ${JSON.stringify(data, null, 2)}`);
 
                 if (response.ok && data.status === 200) {
+                    // Store the report data for later use
+                    currentReportData = data.data;
+                    
                     // Display results
                     document.getElementById('results').style.display = 'block';
                     const riskMain = data.data.riskMain;
@@ -279,6 +359,76 @@
                 log(`Error: ${error.message}`, 'error');
                 console.error(error);
                 alert('An error occurred while downloading the report');
+            }
+        }
+
+        async function storeReport() {
+            try {
+                if (!currentReportData) {
+                    log('No report data available. Please download a report first.', 'error');
+                    alert('Please download a report first before storing it.');
+                    return;
+                }
+
+                const systemUserId = localStorage.getItem('systemUserId');
+                if (!systemUserId) {
+                    log('Error: No System User ID found', 'error');
+                    return;
+                }
+
+                const taxNumber = document.getElementById('taxNumber').value.trim();
+                if (!taxNumber) {
+                    log('Error: Tax number is required', 'error');
+                    alert('Please enter a company tax number.');
+                    return;
+                }
+
+                const reportType = document.getElementById('reportType').value;
+                const year = parseInt(document.getElementById('year').value);
+                let month = null;
+                let quarter = null;
+
+                if (reportType === 'monthly') {
+                    month = parseInt(document.getElementById('month').value);
+                } else if (reportType === 'quarterly') {
+                    quarter = parseInt(document.getElementById('quarter').value);
+                }
+
+                const storeData = {
+                    user_id: parseInt(systemUserId),
+                    company_tax_number: taxNumber,
+                    report_type: reportType,
+                    year: year,
+                    month: month,
+                    quarter: quarter,
+                    report_data: currentReportData
+                };
+
+                log(`Storing report with data: ${JSON.stringify(storeData, null, 2)}`);
+
+                const response = await fetch('/api/v1/store-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(storeData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    log('Report stored successfully', 'success');
+                    alert('Report has been stored successfully.');
+                } else {
+                    const errorMessage = data.detail || data.message || 'Failed to store report';
+                    log(`Error storing report: ${errorMessage}`, 'error');
+                    alert(errorMessage);
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                console.error(error);
+                alert('An error occurred while storing the report');
             }
         }
     </script>

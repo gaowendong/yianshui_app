@@ -320,6 +320,10 @@
                             Timestamp: ${data.timestamp}
                         </div>`;
                         logDebug('Upload completed successfully', 'success');
+                        // Redirect to upload page after successful registration
+                        setTimeout(() => {
+                        window.location.href = '/download-report';
+                        }, 4000);
                     } else {
                         throw new Error(JSON.stringify(data));
                     }
