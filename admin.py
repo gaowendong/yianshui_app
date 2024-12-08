@@ -1,6 +1,6 @@
 from sqladmin import Admin, ModelView
 from database import engine, SessionLocal
-from models import User, CompanyInfo, QueryResult, RiskReport, CompanyReport
+from models import User, CompanyInfo, CompanyReport
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
@@ -191,7 +191,7 @@ class UsersAdmin(ModelView, model=User):
     column_details_list = [
         User.id, User.username, User.firstname, User.lastname,
         User.email, User.role, User.is_admin, User.first_level_channel_id,
-        'companies', 'query_results', 'risk_reports'
+        'companies'
     ]
     
     can_edit = True
@@ -209,41 +209,6 @@ class CompanyInfoAdmin(ModelView, model=CompanyInfo):
     can_edit = True
     can_create = True
     can_delete = True
-
-class QueryResultAdmin(ModelView, model=QueryResult):
-    column_list = [QueryResult.id, QueryResult.user_id, QueryResult.company_info_id,
-                  QueryResult.created_at]
-    can_view_details = True
-    can_edit = False
-    can_create = False
-    can_delete = True
-
-class RiskReportAdmin(ModelView, model=RiskReport):
-    column_list = [RiskReport.id, RiskReport.user_id, RiskReport.created_at]
-    can_view_details = True
-    can_edit = False
-    can_create = False
-    can_delete = True
-    
-    def format_json(self, json_data):
-        try:
-            if isinstance(json_data, str):
-                json_data = json.loads(json_data)
-            return json.dumps(json_data, indent=2)
-        except:
-            return str(json_data)
-    
-    column_formatters = {
-        RiskReport.response_data: lambda m, a: self.format_json(m.response_data)
-    }
-    
-    column_details_list = [
-        RiskReport.id,
-        RiskReport.user_id,
-        RiskReport.response_data,
-        RiskReport.created_at,
-        'user'
-    ]
 
 class CompanyReportAdmin(ModelView, model=CompanyReport):
     column_list = [
@@ -303,8 +268,6 @@ def create_admin(app, secret_key):
     
     admin.add_view(UsersAdmin)
     admin.add_view(CompanyInfoAdmin)
-    admin.add_view(QueryResultAdmin)
-    admin.add_view(RiskReportAdmin)
     admin.add_view(CompanyReportAdmin)
     
     return admin

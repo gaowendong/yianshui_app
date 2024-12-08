@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- Previous head and style sections remain unchanged -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Download Report</title>
     <style>
+        /* Previous styles remain unchanged */
         body {
             font-family: Arial, sans-serif;
             max-width: 800px;
@@ -108,12 +110,40 @@
             margin-top: 5px;
             font-size: 14px;
         }
+        .workflow-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding: 20px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .step {
+            text-align: center;
+            flex: 1;
+            position: relative;
+        }
+        .step.active {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .step:not(:last-child):after {
+            content: "→";
+            position: absolute;
+            right: -10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #ccc;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <a href="/logout" class="logout-btn">Logout</a>
-        
+        <div class="workflow-steps">
+            <div class="step">1. Upload Base Info</div>
+            <div class="step">2. Upload Files</div>
+            <div class="step active">3. Download Report</div>
+        </div>        
         <h1>Download Report</h1>
 
         <div id="authWarning">
@@ -124,16 +154,8 @@
             <div class="form-group">
                 <label for="dateSource">Date Source:</label>
                 <select id="dateSource">
-                    <option value="0">Option 0</option>
-                    <option value="1">Option 1</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="dateTime">Date Time:</label>
-                <select id="dateTime">
-                    <option value="0">Option 0</option>
-                    <option value="1">Option 1</option>
+                    <option value="0">上传</option>
+                    <option value="1">内部</option>
                 </select>
             </div>
 
@@ -159,11 +181,11 @@
             </div>
 
             <div class="form-group">
-                <label for="reportType">Report Type:</label>
-                <select id="reportType">
-                    <option value="annual">Annual Report</option>
-                    <option value="monthly">Monthly Report</option>
-                    <option value="quarterly">Quarterly Report</option>
+                <label for="dateTime">Report Type:</label>
+                <select id="dateTime">
+                    <option value="0">Annual Report</option>
+                    <option value="1">Quarterly Report</option>
+                    <option value="2">Monthly Report</option>
                 </select>
             </div>
 
@@ -256,18 +278,13 @@
 
         function validateForm() {
             const dateSource = parseInt(document.getElementById('dateSource').value);
-            const dateTime = document.getElementById('dateTime').value;
             const dateType = parseInt(document.getElementById('dateType').value);
             const year = parseInt(document.getElementById('year').value);
             const taxNumber = document.getElementById('taxNumber').value.trim();
+            const dateTime = document.getElementById('dateTime').value;
 
             if (![0, 1].includes(dateSource)) {
                 log('Invalid dateSource value', 'error');
-                return false;
-            }
-
-            if (!dateTime && dateTime !== '0') {
-                log('Invalid dateTime value', 'error');
                 return false;
             }
 
@@ -286,16 +303,32 @@
                 return false;
             }
 
+            if (dateTime === '2') {
+                const month = parseInt(document.getElementById('month').value);
+                if (month < 1 || month > 12) {
+                    log('Invalid month value', 'error');
+                    return false;
+                }
+            }
+
+            if (dateTime === '1') {
+                const quarter = parseInt(document.getElementById('quarter').value);
+                if (quarter < 1 || quarter > 4) {
+                    log('Invalid quarter value', 'error');
+                    return false;
+                }
+            }
+
             return true;
         }
 
         function updateFormFields() {
-            const reportType = document.getElementById('reportType').value;
+            const dateTime = document.getElementById('dateTime').value;
             const monthGroup = document.getElementById('monthGroup');
             const quarterGroup = document.getElementById('quarterGroup');
 
-            monthGroup.style.display = reportType === 'monthly' ? 'block' : 'none';
-            quarterGroup.style.display = reportType === 'quarterly' ? 'block' : 'none';
+            monthGroup.style.display = dateTime === '2' ? 'block' : 'none';
+            quarterGroup.style.display = dateTime === '1' ? 'block' : 'none';
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -317,7 +350,7 @@
             }
 
             // Add event listener for report type changes
-            document.getElementById('reportType').addEventListener('change', updateFormFields);
+            document.getElementById('dateTime').addEventListener('change', updateFormFields);
             updateFormFields();
         });
 
@@ -343,14 +376,31 @@
                 log('Starting report download...');
                 log('Using System User ID: ' + systemUserId);
 
+                const reportType = document.getElementById('dateTime').value;
+                let dateTime = 0;  // Default value for annual reports
+                let dateType = 0;  // Default value
+
+                // Set dateTime and dateType based on report type
+                if (reportType === '2') { // Monthly
+                    dateTime = parseInt(document.getElementById('month').value);
+                    dateType = 2;
+                } else if (reportType === '1') { // Quarterly
+                    dateTime = parseInt(document.getElementById('quarter').value);
+                    dateType = 1;
+                } else { // Annual
+                    dateTime = 0;
+                    dateType = 0;
+                }
+
                 const params = {
                     dateSource: parseInt(document.getElementById('dateSource').value),
-                    dateTime: document.getElementById('dateTime').value,
-                    dateType: parseInt(document.getElementById('dateType').value),
-                    year: parseInt(document.getElementById('year').value)
+                    dateType: dateType,
+                    dateTime: dateTime,
+                    year: parseInt(document.getElementById('year').value),
+                    taxpayerNo: document.getElementById('taxNumber').value.trim()
                 };
 
-                log(`Request parameters: ${JSON.stringify(params, null, 2)}`);
+                console.log(`Request parameters: ${JSON.stringify(params, null, 2)}`);
 
                 const response = await fetch(`/api/v1/download-report/${systemUserId}`, {
                     method: 'POST',
@@ -422,24 +472,25 @@
                     return;
                 }
 
-                const reportType = document.getElementById('reportType').value;
+                const reportType = document.getElementById('dateTime').value;
                 const year = parseInt(document.getElementById('year').value);
-                let month = null;
-                let quarter = null;
+                let dateTime = 0;
+                let dateType = 0;
 
-                if (reportType === 'monthly') {
-                    month = parseInt(document.getElementById('month').value);
-                } else if (reportType === 'quarterly') {
-                    quarter = parseInt(document.getElementById('quarter').value);
+                if (reportType === '2') { // Monthly
+                    dateTime = parseInt(document.getElementById('month').value);
+                    dateType = 2;
+                } else if (reportType === '1') { // Quarterly
+                    dateTime = parseInt(document.getElementById('quarter').value);
+                    dateType = 1;
                 }
 
                 const storeData = {
                     user_id: parseInt(systemUserId),
                     company_tax_number: taxNumber,
-                    report_type: reportType,
+                    dateTime: dateTime,
+                    dateType: dateType,
                     year: year,
-                    month: month,
-                    quarter: quarter,
                     report_data: currentReportData
                 };
 

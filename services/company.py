@@ -6,8 +6,7 @@ import httpx
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from redis import Redis
-
-from models import User, CompanyInfo
+from models import User, CompanyInfo, CompanyReport
 from services.auth import get_cached_token, validate_token, get_cached_tin
 
 # Initialize Redis client
@@ -60,9 +59,11 @@ async def upload_company_info_batch(db: Session, system_user_id: int, user_id: i
 
         # Prepare the files for upload
         files_data = []
+        filenames = []  # Store filenames for the company record
         for file in files:
             file_content = await file.read()
             files_data.append(('files', (file.filename, file_content, file.content_type)))
+            filenames.append(file.filename)
             await file.seek(0)  # Reset file position after reading
 
         # Prepare the API request headers and parameters
@@ -72,7 +73,7 @@ async def upload_company_info_batch(db: Session, system_user_id: int, user_id: i
             'dateSource': str(date_source),
             'dateType': str(date_type),
             'year': str(year),
-            'taxpayerNo': tin  # Include TIN in API request
+            'taxpayerNo': tin
         }
         headers = {'token': token}
 
@@ -85,7 +86,7 @@ async def upload_company_info_batch(db: Session, system_user_id: int, user_id: i
         print(f"Headers: {json.dumps({k: v[:10] + '...' if k == 'token' else v for k, v in headers.items()}, indent=2)}")
 
         # Make request to the external API with increased timeout
-        timeout = httpx.Timeout(180.0, connect=60.0)
+        timeout = httpx.Timeout(201.0, connect=60.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
             print("\n=== Sending Request to External API ===")
             try:
@@ -136,44 +137,55 @@ async def upload_company_info_batch(db: Session, system_user_id: int, user_id: i
                     "dateSource": date_source,
                     "dateType": date_type,
                     "year": year,
-                    "taxpayerNo": tin,  # Include TIN in upload parameters
+                    "taxpayerNo": tin,
                     "timestamp": datetime.now().isoformat()
                 }
                 redis_key = f"upload_params:{user_id}"
                 redis_client.set(redis_key, json.dumps(upload_params))
                 print(f"Stored upload parameters: {json.dumps(upload_params, indent=2)}")
 
-                # Create CompanyInfo records for all files
-                print("\n=== Creating CompanyInfo Records ===")
-                company_info_records = []
-                for file in files:
-                    try:
-                        company_info = CompanyInfo(
-                            company_name=file.filename,
-                            tax_number=tin,  # Store TIN in CompanyInfo record
-                            post_data=json.dumps(upload_params),
-                            post_initiator_user_id=user.id,
-                            status=True
-                        )
-                        db.add(company_info)
-                        db.commit()
-                        db.refresh(company_info)
-                        company_info_records.append(company_info)
-                        print(f"Created CompanyInfo record with ID: {company_info.id}")
-                    except Exception as e:
-                        db.rollback()
-                        print(f"Error creating CompanyInfo record for {file.filename}: {str(e)}")
-                        raise HTTPException(
-                            status_code=500,
-                            detail=f"Failed to create CompanyInfo record: {str(e)}"
-                        )
+                # Get company registration info from Redis
+                company_reg_key = f"company_registration:{system_user_id}"
+                company_reg_data = redis_client.get(company_reg_key)
+                if company_reg_data:
+                    company_reg = json.loads(company_reg_data)
+                else:
+                    company_reg = {}
+
+                # Create single CompanyInfo record with all files
+                print("\n=== Creating CompanyInfo Record ===")
+                try:
+                    company_info = CompanyInfo(
+                        company_name=company_reg.get('companyName', ''),
+                        tax_number=tin,
+                        index_standard_type=company_reg.get('indexStandardType', ''),
+                        industry=company_reg.get('industry', ''),
+                        registration_type=company_reg.get('registrationType', ''),
+                        taxpayer_nature=company_reg.get('taxpayerNature', ''),
+                        upload_year=year,
+                        uploaded_files=filenames,
+                        post_data=json.dumps(upload_params),
+                        post_initiator_user_id=user.id,
+                        status=True
+                    )
+                    db.add(company_info)
+                    db.commit()
+                    db.refresh(company_info)
+                    print(f"Created CompanyInfo record with ID: {company_info.id}")
+                except Exception as e:
+                    db.rollback()
+                    print(f"Error creating CompanyInfo record: {str(e)}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to create CompanyInfo record: {str(e)}"
+                    )
 
                 # Return the response data
                 return {
                     "status": response_data.get('status'),
                     "message": response_data.get('msg'),
                     "timestamp": datetime.now().isoformat(),
-                    "company_info_ids": [company_info.id for company_info in company_info_records]
+                    "company_info_id": company_info.id
                 }
 
             except httpx.TimeoutException:
@@ -198,9 +210,9 @@ async def upload_company_info_batch(db: Session, system_user_id: int, user_id: i
             detail=f"Internal server error during company info upload: {str(e)}"
         )
 
-async def query_third_party_system(db: Session, date_source: int, date_time: str, date_type: int, year: int, token: str, current_user: User):
+async def query_third_party_system(db: Session, date_source: int, date_time: str, date_type: int, year: int, token: str, current_user: User, report_type: str = None):
     """
-    Query third party system for company information
+    Query third party system for company information and store the report
     """
     print("\n=== Starting Third Party System Query ===")
     try:
@@ -221,8 +233,6 @@ async def query_third_party_system(db: Session, date_source: int, date_time: str
                 try:
                     data = json.loads(token_data_str)
                     print(f"Found token data: {json.dumps(data, indent=2)}")
-                    print(f"line 224 token in json {data.get('token')}")
-                    print(f"line 225 token: {token}")
                     if data.get("token") == token:
                         token_data = data
                         break
@@ -234,7 +244,7 @@ async def query_third_party_system(db: Session, date_source: int, date_time: str
             print(f"Error: {error_msg}")
             raise HTTPException(status_code=401, detail=error_msg)
 
-        print("in company line 235, Token validated successfully")
+        print("Token validated successfully")
 
         tin = token_data.get('taxpayerNo')
         if not tin:
@@ -248,11 +258,24 @@ async def query_third_party_system(db: Session, date_source: int, date_time: str
         # Convert parameters to strings and ensure they're not None
         params = {
             'dateSource': str(date_source) if date_source is not None else '0',
-            'dateTime': str(date_time) if date_time is not None else '0',
             'dateType': str(date_type) if date_type is not None else '0',
             'year': str(year) if year is not None else str(datetime.now().year),
-            'taxpayerNo': tin  # Include TIN in API request
+            'taxpayerNo': tin,  # Include TIN in API request
+            'reportType': report_type or 'annual'  # Include report type
         }
+
+        # Set dateTime based on report type
+        if report_type == 'quarterly':
+            params['dateTime'] = str(date_time)  # Quarter value (1-4)
+            params['quarter'] = str(date_time)
+        elif report_type == 'monthly':
+            params['dateTime'] = str(date_time)  # Month value (1-12)
+            params['month'] = str(date_time)
+        else:  # annual
+            params['dateTime'] = '0'
+
+        print(f"Using report type: {report_type}")
+        print(f"Using dateTime: {params['dateTime']}")
         
         # Add token to headers
         headers = {
@@ -309,6 +332,67 @@ async def query_third_party_system(db: Session, date_source: int, date_time: str
                     error_msg = response_data.get('msg', 'Query failed')
                     print(f"API Error: {error_msg}")
                     raise HTTPException(status_code=400, detail=error_msg)
+
+                # Store the report in the database
+                try:
+                    # Use the provided report_type or default to 'annual'
+                    report_type = report_type or 'annual'
+                    
+                    # Get the time period from the response data or parameters
+                    risk_main = response_data.get('data', {}).get('riskMain', {})
+                    time_period = risk_main.get('dateTime')
+                    
+                    if time_period is None:
+                        time_period = int(date_time) if date_time else 0
+
+                    print(f"Storing report of type {report_type} for period: {time_period}")
+
+                    # Check if report already exists
+                    query = db.query(CompanyReport).filter(
+                        CompanyReport.company_tax_number == tin,
+                        CompanyReport.report_type == report_type,
+                        CompanyReport.year == year
+                    )
+
+                    # Add period-specific filters based on report type
+                    if report_type == 'monthly':
+                        query = query.filter(CompanyReport.month == time_period)
+                    elif report_type == 'quarterly':
+                        query = query.filter(CompanyReport.quarter == time_period)
+
+                    existing_report = query.first()
+
+                    if existing_report:
+                        # Update existing report
+                        existing_report.report_data = response_data.get('data')
+                        existing_report.updated_at = datetime.now()
+                        print(f"Updating existing report ID: {existing_report.id}")
+                    else:
+                        # Create new report
+                        new_report = CompanyReport(
+                            user_id=current_user.id,
+                            company_tax_number=tin,
+                            report_type=report_type,
+                            year=year,
+                            month=time_period if report_type == 'monthly' else None,
+                            quarter=time_period if report_type == 'quarterly' else None,
+                            report_data=response_data.get('data')
+                        )
+                        db.add(new_report)
+                        print("Creating new report")
+
+                    # Commit the transaction
+                    db.commit()
+                    print("Successfully stored report in database")
+
+                except Exception as e:
+                    db.rollback()
+                    print(f"Error storing report in database: {str(e)}")
+                    print(f"Stack trace: {traceback.format_exc()}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to store report in database: {str(e)}"
+                    )
 
                 return {
                     "status": response_data.get('status'),

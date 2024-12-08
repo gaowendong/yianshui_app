@@ -16,9 +16,6 @@ class User(Base):
     role = Column(String(225))  # "level_1" for first-level, "level_2" for second-level
     first_level_channel_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     
-    companies = relationship("CompanyInfo", back_populates="user")
-    query_results = relationship("QueryResult", back_populates="user")
-    risk_reports = relationship("RiskReport", back_populates="user")
     company_reports = relationship("CompanyReport", back_populates="user")
 
 class CompanyInfo(Base):
@@ -27,48 +24,32 @@ class CompanyInfo(Base):
     id = Column(Integer, primary_key=True)
     company_name = Column(String(225), index=True)
     tax_number = Column(String(225), nullable=False)
+    index_standard_type = Column(String(225))  # Added field for accounting standard
+    industry = Column(String(225))  # Added field for industry type
+    registration_type = Column(String(225))  # Added field for registration type
+    taxpayer_nature = Column(String(225))  # Added field for taxpayer nature
+    upload_year = Column(Integer)  # Added field for upload year
+    uploaded_files = Column(JSON)  # Store array of file names as JSON
     post_data = Column(String(225))  # This can be JSON or stringified
     post_initiator_user_id = Column(Integer, ForeignKey('users.id'))
     status = Column(Boolean)  # Whether the post was successful
     query_result = Column(String(225), nullable=True)  # Store the query result
+    created_at = Column(DateTime(timezone=True), server_default=func.now())  # Added timestamp
 
-    user = relationship("User", back_populates="companies")
-    query_results = relationship("QueryResult", back_populates="company_info")
-    company_reports = relationship("CompanyReport", back_populates="company_info")
+    user = relationship("User")  # Removed back_populates since we removed the relationship from User
+    company_reports = relationship("CompanyReport", back_populates="company_info", cascade="all, delete-orphan")
 
     # Add index for tax_number but remove unique constraint
     __table_args__ = (
         Index('ix_company_info_tax_number', 'tax_number'),
     )
 
-class QueryResult(Base):
-    __tablename__ = 'query_results'
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    company_info_id = Column(Integer, ForeignKey("company_info.id"))
-    query_data = Column(String(1000))  # Increased length for query data
-    created_at = Column(String(225))
-
-    user = relationship("User", back_populates="query_results")
-    company_info = relationship("CompanyInfo", back_populates="query_results")
-
-class RiskReport(Base):
-    __tablename__ = "risk_reports"
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    response_data = Column(JSON)  # Store the entire JSON response
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    user = relationship("User", back_populates="risk_reports")
-
 class CompanyReport(Base):
     __tablename__ = "company_reports"
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    company_tax_number = Column(String(225), ForeignKey("company_info.tax_number"), nullable=False)
+    company_tax_number = Column(String(225), ForeignKey("company_info.tax_number", ondelete="CASCADE"), nullable=False)
     report_type = Column(String(50), nullable=False)  # 'annual', 'monthly', 'quarterly'
     year = Column(Integer, nullable=False)
     month = Column(Integer, nullable=True)  # For monthly reports

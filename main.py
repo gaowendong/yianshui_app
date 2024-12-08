@@ -67,6 +67,16 @@ class CompanyRegistration(BaseModel):
     taxpayerNature: str
     taxpayerNo: str
 
+class DownloadReportRequest(BaseModel):
+    dateSource: int
+    dateTime: str
+    dateType: int
+    year: int
+    taxpayerNo: str
+    reportType: str
+    month: Optional[int] = None
+    quarter: Optional[int] = None
+
 # Routes
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
@@ -235,6 +245,68 @@ async def register(
         
         result = await register_tenant(registration_data)
         return {"status": 200, "data": result}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/download-report/{system_user_id}")
+async def download_report(
+    system_user_id: int,
+    report_data: DownloadReportRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    try:
+        # Get token from Authorization header
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        token = auth_header.split(" ")[1]
+        payload = verify_access_token(token)
+        if not payload:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        # Get user from database
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Get token from Redis
+        token = None
+        for key in redis_client.scan_iter("yas_token:*"):
+            token_data = redis_client.get(key)
+            if token_data:
+                try:
+                    data = json.loads(token_data)
+                    if str(data.get('systemUserId')) == str(system_user_id):
+                        token = data.get('token')
+                        break
+                except json.JSONDecodeError:
+                    continue
+
+        if not token:
+            raise HTTPException(status_code=401, detail="Token not found. Please login first.")
+
+        # Query third party system
+        from services.company import query_third_party_system
+        result = await query_third_party_system(
+            db=db,
+            date_source=report_data.dateSource,
+            date_time=report_data.dateTime,
+            date_type=report_data.dateType,
+            year=report_data.year,
+            token=token,
+            current_user=user,
+            report_type=report_data.reportType
+        )
+        return result
+
     except HTTPException as he:
         raise he
     except Exception as e:

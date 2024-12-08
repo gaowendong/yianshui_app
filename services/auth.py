@@ -70,7 +70,13 @@ async def register_tenant(company_data: dict):
                     'userId': company_data.get('userId'),  # Store the original user ID
                     'tenantId': data['data']['tenantId'],
                     'expirationTime': data['data']['expirationTime'],
-                    'taxpayerNo': company_data.get('taxpayerNo')  # Store TIN with token data
+                    'taxpayerNo': company_data.get('taxpayerNo'),  # Store TIN with token data
+                    # Store additional company registration data
+                    'companyName': company_data.get('companyName'),
+                    'indexStandardType': company_data.get('indexStandardType'),
+                    'industry': company_data.get('industry'),
+                    'registrationType': company_data.get('registrationType'),
+                    'taxpayerNature': company_data.get('taxpayerNature')
                 }
                 
                 # Store token data in Redis with expiration
@@ -85,6 +91,22 @@ async def register_tenant(company_data: dict):
                     print(f"Token Data: {json.dumps(token_data, indent=2)}")
                     
                     redis_key = f"yas_token:{data['data']['systemUserId']}"
+                    
+                    # Store registration data separately with same TTL
+                    registration_key = f"company_registration:{data['data']['systemUserId']}"
+                    registration_data = {
+                        'companyName': company_data.get('companyName'),
+                        'indexStandardType': company_data.get('indexStandardType'),
+                        'industry': company_data.get('industry'),
+                        'registrationType': company_data.get('registrationType'),
+                        'taxpayerNature': company_data.get('taxpayerNature'),
+                        'taxpayerNo': company_data.get('taxpayerNo')
+                    }
+                    redis_client.setex(
+                        registration_key,
+                        ttl,
+                        json.dumps(registration_data, ensure_ascii=False)
+                    )
                     
                     # Ensure proper JSON formatting
                     token_json = json.dumps(token_data, ensure_ascii=False)
