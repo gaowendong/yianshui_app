@@ -1,219 +1,174 @@
-from sqladmin import Admin, ModelView
-from database import engine, SessionLocal
-from models import User, CompanyInfo, CompanyReport
+from sqladmin import ModelView, Admin, BaseView, expose
 from sqladmin.authentication import AuthenticationBackend
-from starlette.requests import Request
-from starlette.responses import RedirectResponse
-from wtforms import SelectField
-import logging
-import traceback
-from fastapi.responses import JSONResponse
-from typing import Any, Optional
+from models import User, Channel, CompanyInfo, CompanyReport, ReportTransaction
+from database import engine
+from fastapi import Depends, Request
+from services.auth import get_current_user
+from typing import Optional
+from sqlalchemy import select, func
+from sqlalchemy.orm import Session
+from database import SessionLocal
 import json
-from utils.auth_utils import verify_password
+from utils.token_utils import SECRET_KEY, verify_access_token  # Import verify_access_token
 
-# Set up logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+def create_admin(app, secret_key: str = SECRET_KEY):
+    authentication_backend = AdminAuth(secret_key=secret_key)
+    admin = Admin(app, engine, authentication_backend=authentication_backend)
 
-# Admin authentication class
+    admin.add_view(UserAdmin)
+    admin.add_view(ChannelAdmin)
+    admin.add_view(CompanyInfoAdmin)
+    admin.add_view(CompanyReportAdmin)
+    admin.add_view(ReportTransactionAdmin)
+    admin.add_view(DashboardView)
+
+    return admin
+
 class AdminAuth(AuthenticationBackend):
-    async def login(self, request: Request) -> Optional[bool]:
+    def __init__(self, secret_key: str):
+        self.secret_key = secret_key
+        super().__init__(secret_key)
+
+    async def authenticate(self, request: Request) -> Optional[str]:
+        try:
+            auth_header = request.headers.get("Authorization")
+            if not auth_header or not auth_header.startswith("Bearer "):
+                # Check session for admin status
+                if request.session.get("is_admin"):
+                    return str(request.session.get("user_id"))
+                return None
+
+            token = auth_header.split(" ")[1]
+            payload = verify_access_token(token)
+            user_id = payload.get("user_id")
+            
+            if not user_id:
+                return None
+
+            # Get database session
+            db = SessionLocal()
+            try:
+                user = db.query(User).filter(User.id == user_id).first()
+                if user and user.is_admin:
+                    return str(user.id)
+            finally:
+                db.close()
+            
+            return None
+        except Exception as e:
+            print(f"Authentication error: {str(e)}")
+            return None
+
+    async def login(self, request: Request) -> bool:
         try:
             form = await request.form()
             username = form.get("username")
             password = form.get("password")
-            logger.debug(f"Login attempt for username: {username}")
-            
+
+            # Get database session
             db = SessionLocal()
             try:
                 user = db.query(User).filter(User.username == username).first()
-                if user and verify_password(password, user.password):
-                    if user.is_admin:
-                        # Store both token and admin status in session
-                        request.session.update({
-                            "token": username,
-                            "admin": True,
-                            "user_id": user.id
-                        })
-                        logger.info(f"Successful admin login for user: {username}")
-                        return True
-                logger.warning(f"Failed login attempt for user: {username}")
-                return False
+                if user and user.is_admin:
+                    request.session["user_id"] = user.id
+                    request.session["is_admin"] = True
+                    return True
             finally:
                 db.close()
+
+            return False
         except Exception as e:
-            logger.error(f"Error in login: {str(e)}")
-            logger.error(traceback.format_exc())
+            print(f"Login error: {str(e)}")
             return False
 
     async def logout(self, request: Request) -> bool:
-        try:
-            request.session.clear()
-            return True
-        except Exception as e:
-            logger.error(f"Error in logout: {str(e)}")
-            return False
+        request.session.clear()
+        return True
 
-    async def authenticate(self, request: Request) -> bool:
-        try:
-            token = request.session.get("token")
-            is_admin = request.session.get("admin", False)
-            user_id = request.session.get("user_id")
-            
-            if not token or not is_admin or not user_id:
-                logger.debug("Missing session data")
-                return False
-                
-            # Check if user still exists and is admin
-            db = SessionLocal()
-            try:
-                user = db.query(User).filter(User.username == token).first()
-                if user and user.is_admin and user.id == user_id:
-                    logger.debug(f"Successfully authenticated admin user: {token}")
-                    return True
-                logger.debug(f"Failed to authenticate user: {token}")
-                return False
-            finally:
-                db.close()
-        except Exception as e:
-            logger.error(f"Error in authenticate: {str(e)}")
-            return False
-
-# User List View in Admin Panel
-class UsersAdmin(ModelView, model=User):
-    column_list = [User.id, User.username, User.firstname, User.lastname, 
-                  User.email, User.role, User.is_admin, User.first_level_channel_id]
-    column_searchable_list = [User.username, User.email]
-    column_sortable_list = [User.id, User.username, User.email]
+class UserAdmin(ModelView, model=User):
+    column_list = [
+        User.id,
+        User.email,
+        User.username,
+        User.firstname,
+        User.lastname,
+        User.is_admin,
+        User.role,
+        User.channel_id,
+        User.first_level_channel_id
+    ]
+    column_searchable_list = [User.email, User.username]
+    column_sortable_list = [User.id, User.email, User.username]
     column_default_sort = 'id'
-    
-    form_columns = [
-        User.username, User.password, User.firstname, User.lastname,
-        User.email, User.role, User.is_admin, User.first_level_channel_id
-    ]
-    
-    form_overrides = {
-        'role': SelectField,
-        'first_level_channel_id': SelectField,
-    }
-    
-    form_args = {
-        'role': {
-            'choices': [
-                ('level_1', 'First-Level'),
-                ('level_2', 'Second-Level')
-            ]
-        },
-        'first_level_channel_id': {
-            'choices': []  # Will be populated in scaffold_form
-        }
-    }
-
-    async def scaffold_form(self, form_class=None):
-        try:
-            logger.debug("Starting scaffold_form")
-            form = await super().scaffold_form(form_class)
-            logger.debug("Base form scaffolded")
-            
-            db = SessionLocal()
-            try:
-                first_level_users = db.query(User).filter(User.role == 'level_1').all()
-                choices = [(None, '-- Select First Level User --')] + [
-                    (str(user.id), f"{user.username} ({user.email})") 
-                    for user in first_level_users
-                ]
-                logger.debug(f"Generated choices: {choices}")
-                
-                if hasattr(form, 'first_level_channel_id'):
-                    form.first_level_channel_id.kwargs['choices'] = choices
-                    logger.debug("Set first_level_channel_id choices")
-                    
-            finally:
-                db.close()
-            
-            logger.debug("Completed scaffold_form")
-            return form
-            
-        except Exception as e:
-            logger.error(f"Error in scaffold_form: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise
-
-    async def on_model_change(self, form: dict, model: Any, is_created: bool, request: Request) -> None:
-        try:
-            logger.debug(f"Model change - is_created: {is_created}")
-            logger.debug(f"Model before change: {model.__dict__}")
-            logger.debug(f"Form data: {form}")
-
-            # Handle first_level_channel_id conversion
-            if 'first_level_channel_id' in form:
-                value = form['first_level_channel_id']
-                logger.debug(f"Processing first_level_channel_id value: {value}")
-                
-                if value == 'None' or value == '' or value is None:
-                    logger.debug("Setting first_level_channel_id to None")
-                    model.first_level_channel_id = None
-                else:
-                    try:
-                        model.first_level_channel_id = int(value)
-                        logger.debug(f"Converted first_level_channel_id to int: {model.first_level_channel_id}")
-                    except (ValueError, TypeError) as e:
-                        logger.error(f"Error converting first_level_channel_id: {e}")
-                        model.first_level_channel_id = None
-
-            # Handle boolean fields
-            if 'is_admin' in form:
-                model.is_admin = bool(form['is_admin'])
-                logger.debug(f"Processed is_admin value: {model.is_admin}")
-
-            # Handle other fields
-            for key, value in form.items():
-                if key not in ['first_level_channel_id', 'is_admin']:
-                    setattr(model, key, value)
-                    logger.debug(f"Setting {key} = {value}")
-
-            # Validate role and first_level_channel_id combination
-            if model.role == 'level_2' and model.first_level_channel_id is None:
-                raise ValueError("Second-Level users must have a First-Level user assigned")
-
-            logger.debug(f"Model after change: {model.__dict__}")
-
-        except Exception as e:
-            logger.error(f"Error in on_model_change: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise
-
-    can_view_details = True
-    column_details_list = [
-        User.id, User.username, User.firstname, User.lastname,
-        User.email, User.role, User.is_admin, User.first_level_channel_id,
-        'companies'
-    ]
-    
-    can_edit = True
+    form_excluded_columns = ['password']
     can_create = True
+    can_edit = True
     can_delete = True
+    can_view_details = True
+    name = "User"
+    name_plural = "Users"
+    icon = "fa-solid fa-user"
 
-    column_formatters = {
-        User.first_level_channel_id: lambda m, a: f"User #{m.first_level_channel_id}" if m.first_level_channel_id else None
-    }
+class ChannelAdmin(ModelView, model=Channel):
+    column_list = [
+        Channel.id,
+        Channel.channel_number,
+        Channel.channel_name,
+        Channel.channel_location,
+        Channel.industry,
+        Channel.contact_person,
+        Channel.contact_number,
+        Channel.email,
+        Channel.registration_time,
+        Channel.balance
+    ]
+    column_searchable_list = [Channel.channel_number, Channel.channel_name]
+    column_sortable_list = [Channel.id, Channel.channel_number, Channel.channel_name]
+    column_default_sort = 'id'
+    can_create = True
+    can_edit = True
+    can_delete = True
+    can_view_details = True
+    name = "Channel"
+    name_plural = "Channels"
+    icon = "fa-solid fa-building"
 
 class CompanyInfoAdmin(ModelView, model=CompanyInfo):
-    column_list = [CompanyInfo.id, CompanyInfo.company_name, CompanyInfo.tax_number,
-                  CompanyInfo.status, CompanyInfo.post_initiator_user_id]
-    can_view_details = True
-    can_edit = True
+    column_list = [
+        CompanyInfo.id,
+        CompanyInfo.company_name,
+        CompanyInfo.tax_number,
+        CompanyInfo.index_standard_type,
+        CompanyInfo.industry,
+        CompanyInfo.registration_type,
+        CompanyInfo.taxpayer_nature,
+        CompanyInfo.upload_year,
+        CompanyInfo.status,
+        CompanyInfo.created_at
+    ]
+    column_searchable_list = [CompanyInfo.company_name, CompanyInfo.tax_number]
+    column_sortable_list = [CompanyInfo.id, CompanyInfo.company_name]
+    column_default_sort = 'id'
     can_create = True
+    can_edit = True
     can_delete = True
+    can_view_details = True
+    name = "Company Info"
+    name_plural = "Company Infos"
+    icon = "fa-solid fa-info-circle"
+
+    def on_model_change(self, form, model, is_created):
+        # Convert uploaded_files to JSON if it's a string
+        if isinstance(model.uploaded_files, str):
+            try:
+                model.uploaded_files = json.loads(model.uploaded_files)
+            except json.JSONDecodeError:
+                model.uploaded_files = []
 
 class CompanyReportAdmin(ModelView, model=CompanyReport):
     column_list = [
         CompanyReport.id,
-        CompanyReport.user_id,
+        CompanyReport.processed_by_user_id,
         CompanyReport.company_tax_number,
         CompanyReport.report_type,
         CompanyReport.year,
@@ -241,7 +196,7 @@ class CompanyReportAdmin(ModelView, model=CompanyReport):
     
     column_details_list = [
         CompanyReport.id,
-        CompanyReport.user_id,
+        CompanyReport.processed_by_user_id,
         CompanyReport.company_tax_number,
         CompanyReport.report_type,
         CompanyReport.year,
@@ -253,21 +208,59 @@ class CompanyReportAdmin(ModelView, model=CompanyReport):
         'user',
         'company_info'
     ]
+    
+class ReportTransactionAdmin(ModelView, model=ReportTransaction):
+    column_list = [
+        ReportTransaction.id,
+        ReportTransaction.user_id,
+        ReportTransaction.channel_id,
+        ReportTransaction.report_id,
+        ReportTransaction.transaction_type,
+        ReportTransaction.cost,
+        ReportTransaction.created_at
+    ]
+    column_sortable_list = [ReportTransaction.id, ReportTransaction.created_at]
+    column_default_sort = 'id'
+    can_create = True
+    can_edit = True
+    can_delete = True
+    can_view_details = True
+    name = "Report Transaction"
+    name_plural = "Report Transactions"
+    icon = "fa-solid fa-exchange-alt"
 
-def create_admin(app, secret_key):
-    authentication_backend = AdminAuth(secret_key=secret_key)
-    admin = Admin(
-        app=app,
-        engine=engine,
-        authentication_backend=authentication_backend,
-        base_url="/admin",
-        title="Admin Panel",
-        debug=True,
-        middlewares=[]  # Disable default middlewares to avoid conflicts
-    )
-    
-    admin.add_view(UsersAdmin)
-    admin.add_view(CompanyInfoAdmin)
-    admin.add_view(CompanyReportAdmin)
-    
-    return admin
+class DashboardView(BaseView):
+    name = "Dashboard"
+    icon = "fa-solid fa-chart-line"
+
+    @expose("/admin/dashboard")
+    def dashboard(self, request: Request):
+        db = SessionLocal()
+        try:
+            total_users = db.query(func.count(User.id)).scalar()
+            total_channels = db.query(func.count(Channel.id)).scalar()
+            total_reports = db.query(func.count(CompanyReport.id)).scalar()
+            total_transactions = db.query(func.count(ReportTransaction.id)).scalar()
+
+            recent_reports = db.query(CompanyReport).order_by(
+                CompanyReport.created_at.desc()
+            ).limit(5).all()
+
+            recent_transactions = db.query(ReportTransaction).order_by(
+                ReportTransaction.created_at.desc()
+            ).limit(5).all()
+
+            return self.templates.TemplateResponse(
+                "admin/dashboard.html",
+                {
+                    "request": request,
+                    "total_users": total_users,
+                    "total_channels": total_channels,
+                    "total_reports": total_reports,
+                    "total_transactions": total_transactions,
+                    "recent_reports": recent_reports,
+                    "recent_transactions": recent_transactions
+                }
+            )
+        finally:
+            db.close()

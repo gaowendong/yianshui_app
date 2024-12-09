@@ -45,7 +45,8 @@ def create_sample_users():
                 "lastname": "User",
                 "email": "admin@example.com",
                 "role": "admin",
-                "is_admin": True
+                "is_admin": True,
+                "channel_id": None
             },
             {
                 "username": "first_level_user_1",
@@ -54,7 +55,8 @@ def create_sample_users():
                 "lastname": "Doe",
                 "email": "john@example.com",
                 "role": "level_1",
-                "is_admin": False
+                "is_admin": False,
+                "channel_id": 1  # Tech Channel
             },
             {
                 "username": "first_level_user_2",
@@ -63,7 +65,8 @@ def create_sample_users():
                 "lastname": "Smith",
                 "email": "jane@example.com",
                 "role": "level_1",
-                "is_admin": False
+                "is_admin": False,
+                "channel_id": 2  # Finance Channel
             }
         ]
         
@@ -82,7 +85,8 @@ def create_sample_users():
                     lastname=user_data["lastname"],
                     email=user_data["email"],
                     role=user_data["role"],
-                    is_admin=user_data["is_admin"]
+                    is_admin=user_data["is_admin"],
+                    channel_id=user_data["channel_id"]
                 )
                 session.add(user)
                 session.flush()  # Flush to get the ID without committing
@@ -105,7 +109,8 @@ def create_sample_users():
                 "lastname": "Brown",
                 "email": "alice@example.com",
                 "role": "level_2",
-                "first_level_channel_id": created_users[1].id  # Adjusted index due to admin user
+                "first_level_channel_id": created_users[1].id,  # Adjusted index due to admin user
+                "channel_id": 1  # Tech Channel
             },
             {
                 "username": "second_level_user_2",
@@ -114,7 +119,8 @@ def create_sample_users():
                 "lastname": "Green",
                 "email": "bob@example.com",
                 "role": "level_2",
-                "first_level_channel_id": created_users[2].id  # Adjusted index due to admin user
+                "first_level_channel_id": created_users[2].id,  # Adjusted index due to admin user
+                "channel_id": 2  # Finance Channel
             }
         ]
         
@@ -133,6 +139,7 @@ def create_sample_users():
                     email=user_data["email"],
                     role=user_data["role"],
                     first_level_channel_id=user_data["first_level_channel_id"],
+                    channel_id=user_data["channel_id"],
                     is_admin=False
                 )
                 session.add(user)

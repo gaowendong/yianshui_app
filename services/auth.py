@@ -1,15 +1,18 @@
 import httpx
-from fastapi import HTTPException
+from fastapi import HTTPException, Depends, Request
 import redis
 from datetime import datetime
 import json
 import traceback
 import socket
+from sqlalchemy.orm import Session
+from database import SessionLocal
+from utils.token_utils import verify_access_token
+from models import User
 
 # Initialize Redis connection with error handling
 try:
     redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-    # Test the connection
     redis_client.ping()
     print("Successfully connected to Redis")
 except redis.ConnectionError as e:
@@ -19,6 +22,51 @@ except redis.ConnectionError as e:
 except Exception as e:
     print(f"Unexpected error connecting to Redis: {e}")
     redis_client = None
+
+def get_db():
+    """
+    Database session dependency
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+async def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    """
+    Get the current authenticated user from the request
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated"
+        )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        payload = verify_access_token(token)
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid token payload"
+            )
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+        
+        return user
+    except Exception as e:
+        raise HTTPException(
+            status_code=401,
+            detail=f"Invalid token: {str(e)}"
+        )
 
 def parse_datetime(datetime_str: str) -> datetime:
     """
@@ -63,15 +111,13 @@ async def register_tenant(company_data: dict):
             
             if data.get('status') == 200:
                 print("\nRegistration successful, processing token...")
-                print(f"auth.py line 66: company data: {company_data}")
                 token_data = {
                     'token': data['data']['token'],
                     'systemUserId': data['data']['systemUserId'],
-                    'userId': company_data.get('userId'),  # Store the original user ID
+                    'userId': company_data.get('userId'),
                     'tenantId': data['data']['tenantId'],
                     'expirationTime': data['data']['expirationTime'],
-                    'taxpayerNo': company_data.get('taxpayerNo'),  # Store TIN with token data
-                    # Store additional company registration data
+                    'taxpayerNo': company_data.get('taxpayerNo'),
                     'companyName': company_data.get('companyName'),
                     'indexStandardType': company_data.get('indexStandardType'),
                     'industry': company_data.get('industry'),
@@ -79,7 +125,6 @@ async def register_tenant(company_data: dict):
                     'taxpayerNature': company_data.get('taxpayerNature')
                 }
                 
-                # Store token data in Redis with expiration
                 try:
                     print(f"\nParsing expiration time: {data['data']['expirationTime']}")
                     expiration = parse_datetime(data['data']['expirationTime'])
@@ -92,7 +137,6 @@ async def register_tenant(company_data: dict):
                     
                     redis_key = f"yas_token:{data['data']['systemUserId']}"
                     
-                    # Store registration data separately with same TTL
                     registration_key = f"company_registration:{data['data']['systemUserId']}"
                     registration_data = {
                         'companyName': company_data.get('companyName'),
@@ -108,7 +152,6 @@ async def register_tenant(company_data: dict):
                         json.dumps(registration_data, ensure_ascii=False)
                     )
                     
-                    # Ensure proper JSON formatting
                     token_json = json.dumps(token_data, ensure_ascii=False)
                     print(f"Formatted token JSON: {token_json}")
                     
@@ -118,7 +161,6 @@ async def register_tenant(company_data: dict):
                         token_json
                     )
                     
-                    # Verify token was stored correctly
                     stored_data = redis_client.get(redis_key)
                     if stored_data:
                         try:
@@ -260,7 +302,6 @@ def validate_token(token: str) -> bool:
         
         check_redis_connection()
         
-        # Scan through all keys to find the token
         for key in redis_client.scan_iter("yas_token:*"):
             print(f"Checking key: {key}")
             token_data = redis_client.get(key)
@@ -269,7 +310,7 @@ def validate_token(token: str) -> bool:
                     data = json.loads(token_data)
                     print(f"Found token data: {json.dumps(data, indent=2)}")
                     if data.get('token') == token:
-                        print("in auth line 250, Token validated successfully")
+                        print("Token validated successfully")
                         return True
                 except json.JSONDecodeError as e:
                     print(f"Error parsing token data for key {key}: {str(e)}")
@@ -296,7 +337,6 @@ def decode_token(token: str) -> dict:
         
         check_redis_connection()
         
-        # Scan through all keys to find the token
         for key in redis_client.scan_iter("yas_token:*"):
             print(f"Checking key: {key}")
             token_data = redis_client.get(key)
@@ -309,7 +349,7 @@ def decode_token(token: str) -> dict:
                             'user_id': data['systemUserId'],
                             'tenant_id': data['tenantId'],
                             'expiration_time': data['expirationTime'],
-                            'taxpayer_no': data.get('taxpayerNo')  # Include TIN in decoded data
+                            'taxpayer_no': data.get('taxpayerNo')
                         }
                 except json.JSONDecodeError as e:
                     print(f"Error parsing token data for key {key}: {str(e)}")

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Channel Management</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        th { background-color: #f4f4f4; }
+    </style>
+</head>
+<body>
+    <h1>Channel Management</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Channel Number</th>
+                <th>Channel Name</th>
+                <th>Location</th>
+                <th>Industry</th>
+                <th>Contact Person</th>
+                <th>Balance</th>
+            </tr>
+        </thead>
+        <tbody id="channel-data">
+            <!-- Data will be populated here -->
+        </tbody>
+    </table>
+
+    <script>
+        async function fetchChannelData() {
+            try {
+                const response = await fetch("/api/channels", {
+                    headers: {
+                        "Authorization": `Bearer ${localStorage.getItem("token")}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const tbody = document.getElementById("channel-data");
+                    tbody.innerHTML = "";
+                    data.forEach(channel => {
+                        const row = document.createElement("tr");
+                        row.innerHTML = `
+                            <td>${channel.channel_number || 'N/A'}</td>
+                            <td>${channel.channel_name || 'N/A'}</td>
+                            <td>${channel.channel_location || 'N/A'}</td>
+                            <td>${channel.industry || 'N/A'}</td>
+                            <td>${channel.contact_person || 'N/A'}</td>
+                            <td>${channel.balance ? channel.balance.toFixed(2) : 'N/A'}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                } else {
+                    // Handle authentication errors
+                    const errorText = await response.text();
+                    alert(`Failed to fetch channel data: ${errorText}`);
+                    // Optionally redirect to login page
+                    window.location.href = "/login";
+                }
+            } catch (error) {
+                console.error("Error fetching channel data:", error);
+                alert("An error occurred while fetching channel data");
+            }
+        }
+
+        // Fetch channel data when the page loads
+        fetchChannelData();
+    </script>
+</body>
+</html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Level 2 User Reports</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .user-info {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #e8f5e9;
+            border-radius: 8px;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 20px; 
+        }
+        th, td { 
+            padding: 12px; 
+            border: 1px solid #ddd; 
+            text-align: left; 
+        }
+        th { 
+            background-color: #f4f4f4; 
+        }
+        .back-button {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #2196f3;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .back-button:hover {
+            background-color: #1976d2;
+        }
+        .report-type {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+        .error-message {
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/channel/dashboard" class="back-button">← Back to Dashboard</a>
+        
+        <div id="error-display" class="error-message"></div>
+        
+        <div class="card">
+            <div class="user-info">
+                <h2>Level 2 User Information</h2>
+                <p><strong>Username:</strong> <span id="username"></span></p>
+                <p><strong>Email:</strong> <span id="email"></span></p>
+                <p><strong>Name:</strong> <span id="fullname"></span></p>
+            </div>
+
+            <h2>Reports Processed by User</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Company Name</th>
+                        <th>Report Type</th>
+                        <th>Year</th>
+                        <th>Period</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="reports-data">
+                    <!-- Reports data will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function fetchUserReports() {
+            try {
+                // Get user_id from URL path
+                const pathParts = window.location.pathname.split('/');
+                const userId = pathParts[pathParts.indexOf('user') + 1];
+                const urlParams = new URLSearchParams(window.location.search);
+                const channelId = urlParams.get('channel_id');
+                
+                console.log('Fetching reports for user:', userId, 'channel:', channelId);
+
+                // Get the auth token from localStorage
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    console.error('No access token found');
+                    showError('Authentication required. Please log in.');
+                    window.location.href = '/login';
+                    return;
+                }
+
+                console.log('Making API request with token');
+                const response = await fetch(`/api/channel/${channelId}/user/${userId}/reports`, {
+                    headers: {
+                        'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Received data:', data);
+                    updatePage(data);
+                } else {
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText);
+                    if (response.status === 401) {
+                        console.error('Authentication failed');
+                        showError('Session expired. Please log in again.');
+                        localStorage.removeItem('access_token');
+                        window.location.href = '/login';
+                    } else {
+                        showError(`Failed to fetch user reports: ${errorText}`);
+                    }
+                }
+            } catch (error) {
+                console.error('Error in fetchUserReports:', error);
+                showError(`Error loading reports: ${error.message}`);
+            }
+        }
+
+        function showError(message) {
+            const errorDisplay = document.getElementById('error-display');
+            errorDisplay.textContent = message;
+            errorDisplay.style.display = 'block';
+        }
+
+        function updatePage(data) {
+            try {
+                // Update user information
+                document.getElementById("username").textContent = data.user.username;
+                document.getElementById("email").textContent = data.user.email;
+                document.getElementById("fullname").textContent = 
+                    `${data.user.firstname || ''} ${data.user.lastname || ''}`.trim() || 'N/A';
+
+                // Update reports table
+                const reportsBody = document.getElementById("reports-data");
+                reportsBody.innerHTML = "";
+                
+                if (!data.reports || !Array.isArray(data.reports)) {
+                    console.error('Invalid reports data:', data.reports);
+                    showError('Invalid reports data received from server');
+                    return;
+                }
+                
+                data.reports.forEach(report => {
+                    const date = new Date(report.created_at).toLocaleString();
+                    const period = report.month ? 
+                        `Month ${report.month}` : 
+                        report.quarter ? 
+                        `Q${report.quarter}` : 
+                        'Annual';
+                    
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${date}</td>
+                        <td>${report.company_info.company_name}</td>
+                        <td><span class="report-type">${report.report_type}</span></td>
+                        <td>${report.year}</td>
+                        <td>${period}</td>
+                        <td>Active</td>
+                    `;
+                    reportsBody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error in updatePage:', error);
+                showError(`Error updating page: ${error.message}`);
+            }
+        }
+
+        // Fetch data when the page loads
+        fetchUserReports();
+    </script>
+</body>
+</html>

@@ -142,9 +142,8 @@
                 if (response.ok && data.status === 'success') {
                     console.log('Login successful');
                     
-                    // Store the access token in localStorage
-                    const token = data.access_token.replace('Bearer ', '');
-                    localStorage.setItem('access_token', token);
+                    // Store the complete access token including "Bearer " prefix
+                    localStorage.setItem('access_token', data.access_token);
                     console.log('Access token stored');
 
                     // Store system user ID if provided
@@ -155,9 +154,15 @@
                         console.log('No system user ID provided - user may need to register first');
                     }
 
-                    // Redirect to the specified URL
-                    console.log('Redirecting to:', data.redirect_url);
-                    window.location.href = data.redirect_url;
+                    // For admin users, make a request to the admin page with the token
+                    if (data.redirect_url === '/admin') {
+                        console.log('Admin user detected, redirecting with token...');
+                        window.location.href = data.redirect_url;
+                    } else {
+                        // For non-admin users, redirect normally
+                        console.log('Redirecting to:', data.redirect_url);
+                        window.location.href = data.redirect_url;
+                    }
                 } else {
                     // Show error message
                     const errorMessage = data.message || 'Login failed';
@@ -175,6 +180,21 @@
                 this.insertBefore(errorDiv, this.firstChild);
             }
         });
+
+        // Add Authorization header to all fetch requests
+        const originalFetch = window.fetch;
+        window.fetch = function() {
+            const token = localStorage.getItem('access_token');
+            if (token && arguments[1] && !arguments[1].headers) {
+                arguments[1] = {
+                    ...arguments[1],
+                    headers: {
+                        'Authorization': token
+                    }
+                };
+            }
+            return originalFetch.apply(this, arguments);
+        };
     </script>
 </body>
 </html>
