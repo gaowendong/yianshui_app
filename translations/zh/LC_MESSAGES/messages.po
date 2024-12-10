@@ -1,0 +1,178 @@
+msgid ""
+msgstr ""
+"Project-Version: 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-01-01 00:00+0000\n"
+"PO-Revision-Date: 2023-01-01 00:00+0000\n"
+"Last-Translator: \n"
+"Language: zh\n"
+"Language-Team: zh <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+# Existing login translations
+msgid "Login Page"
+msgstr "登录页面"
+
+msgid "Welcome to the System"
+msgstr "欢迎使用系统"
+
+msgid "Username"
+msgstr "用户名"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Login"
+msgstr "登录"
+
+msgid "Don't have an account?"
+msgstr "没有账户？"
+
+msgid "Register"
+msgstr "注册"
+
+msgid "Username and password are required"
+msgstr "用户名和密码是必填的"
+
+msgid "Invalid username or password"
+msgstr "无效的用户名或密码"
+
+msgid "Login failed"
+msgstr "登录失败"
+
+# Dashboard translations
+msgid "Channel Dashboard"
+msgstr "渠道仪表板"
+
+msgid "Channel Information"
+msgstr "渠道信息"
+
+msgid "Enter amount"
+msgstr "输入金额"
+
+msgid "Deposit Funds"
+msgstr "存入资金"
+
+msgid "Total Uploads"
+msgstr "总上传数"
+
+msgid "Total Downloads"
+msgstr "总下载数"
+
+msgid "Total Cost"
+msgstr "总成本"
+
+msgid "Current Balance"
+msgstr "当前余额"
+
+msgid "Second Level Users"
+msgstr "二级用户"
+
+msgid "Email"
+msgstr "邮箱"
+
+msgid "Name"
+msgstr "姓名"
+
+msgid "Role"
+msgstr "角色"
+
+msgid "Actions"
+msgstr "操作"
+
+msgid "Channel Reports"
+msgstr "渠道报告"
+
+msgid "Date"
+msgstr "日期"
+
+msgid "Company Info"
+msgstr "公司信息"
+
+msgid "Report Details"
+msgstr "报告详情"
+
+msgid "Processed By"
+msgstr "处理人"
+
+msgid "Recent Transactions"
+msgstr "最近交易"
+
+msgid "Type"
+msgstr "类型"
+
+msgid "Report ID"
+msgstr "报告ID"
+
+msgid "Cost"
+msgstr "费用"
+
+msgid "Channel Number"
+msgstr "渠道编号"
+
+msgid "Location"
+msgstr "位置"
+
+msgid "Industry"
+msgstr "行业"
+
+msgid "Contact Person"
+msgstr "联系人"
+
+msgid "Contact Number"
+msgstr "联系电话"
+
+msgid "Registration Date"
+msgstr "注册日期"
+
+msgid "Website"
+msgstr "网站"
+
+msgid "App"
+msgstr "应用"
+
+msgid "Official Account"
+msgstr "官方账号"
+
+msgid "Douyin Account"
+msgstr "抖音账号"
+
+msgid "View Reports"
+msgstr "查看报告"
+
+msgid "Successfully deposited"
+msgstr "存款成功"
+
+msgid "New balance"
+msgstr "新余额"
+
+msgid "Failed to deposit funds"
+msgstr "存款失败"
+
+msgid "Please enter a valid amount"
+msgstr "请输入有效金额"
+
+msgid "An error occurred while depositing funds"
+msgstr "存款过程中发生错误"
+
+msgid "Tax Number"
+msgstr "税号"
+
+msgid "Registration Type"
+msgstr "注册类型"
+
+msgid "Year"
+msgstr "年份"
+
+msgid "Month"
+msgstr "月份"
+
+msgid "Quarter"
+msgstr "季度"
+
+msgid "User ID"
+msgstr "用户ID"

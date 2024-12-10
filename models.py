@@ -26,7 +26,6 @@ class Channel(Base):
     users = relationship("User", back_populates="channel", foreign_keys="[User.channel_id]")
     channel_admin = relationship("User", foreign_keys=[channel_admin_id])
     report_transactions = relationship("ReportTransaction", back_populates="channel", cascade="all, delete-orphan")
-    company_infos = relationship("CompanyInfo", back_populates="channel")
 
 class User(Base):
     __tablename__ = "users"
@@ -38,7 +37,8 @@ class User(Base):
     firstname = Column(String(225))
     lastname = Column(String(225))
     is_admin = Column(Boolean)
-    role = Column(String(225))  # "level_1" for first-level, "level_2" for second-level
+    is_top_level_admin = Column(Boolean, default=False)  # Added field for top level admin
+    role = Column(String(225))  # "level_1" for first-level, "level_2" for second-level, "top_level_admin" for top admin
     first_level_channel_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     channel_id = Column(Integer, ForeignKey("channels.id"), nullable=True)
     
@@ -62,13 +62,11 @@ class CompanyInfo(Base):
     uploaded_files = Column(JSON)  # Store array of file names as JSON
     post_data = Column(String(225))  # This can be JSON or stringified
     post_initiator_user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    channel_id = Column(Integer, ForeignKey("channels.id"), nullable=True)  # Changed to nullable
     status = Column(Boolean)  # Whether the post was successful
     query_result = Column(String(225), nullable=True)  # Store the query result
     created_at = Column(DateTime(timezone=True), server_default=func.now())  # Added timestamp
 
     user = relationship("User")
-    channel = relationship("Channel", back_populates="company_infos")
     company_reports = relationship("CompanyReport", back_populates="company_info", cascade="all, delete-orphan")
 
     __table_args__ = (

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>用户报告列表</title>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="/static/css/top_level_admin.css">
+    <style>
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .user-summary {
+            background: #e3f2fd;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+        .report-type {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+        .report-type.monthly {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .report-type.quarterly {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+        .report-type.annual {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+        .search-controls {
+            margin-bottom: 2rem;
+        }
+        .search-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 1rem;
+        }
+        .filter-group {
+            display: flex;
+            gap: 1rem;
+        }
+        .filter-select {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .reports-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-dashboard">
+        <a href="/topadmin/dashboard" class="back-link">← 返回仪表板</a>
+
+        <div class="report-section">
+            <h1>用户报告列表</h1>
+        </div>
+
+        <div class="user-summary">
+            <h2>{{ user.username }}</h2>
+            <p>角色: {{ user.role }}</p>
+            <p>报告总数: {{ reports|length }}</p>
+        </div>
+
+        <div class="report-section">
+            <div class="search-controls">
+                <input type="text" class="search-input" placeholder="搜索公司名称或税号..." id="searchInput">
+                <div class="filter-group">
+                    <select class="filter-select" id="reportTypeFilter">
+                        <option value="">所有报告类型</option>
+                        <option value="monthly">月度报告</option>
+                        <option value="quarterly">季度报告</option>
+                        <option value="annual">年度报告</option>
+                    </select>
+                    <select class="filter-select" id="yearFilter">
+                        <option value="">所有年份</option>
+                        {% for year in range(2020, 2025) %}
+                        <option value="{{ year }}">{{ year }}年</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="reports-grid">
+                {% for report in reports %}
+                <div class="report-card">
+                    <span class="report-type {{ report.report_type }}">
+                        {% if report.report_type == 'monthly' %}
+                            月度报告
+                        {% elif report.report_type == 'quarterly' %}
+                            季度报告
+                        {% else %}
+                            年度报告
+                        {% endif %}
+                    </span>
+                    <h3>{{ report.company_name }}</h3>
+                    <div class="meta-item">
+                        <label>税号</label>
+                        <div>{{ report.tax_number }}</div>
+                    </div>
+                    <div class="meta-item">
+                        <label>年份</label>
+                        <div>{{ report.year }}</div>
+                    </div>
+                    {% if report.month %}
+                    <div class="meta-item">
+                        <label>月份</label>
+                        <div>{{ report.month }}</div>
+                    </div>
+                    {% endif %}
+                    {% if report.quarter %}
+                    <div class="meta-item">
+                        <label>季度</label>
+                        <div>{{ report.quarter }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="meta-item">
+                        <label>创建时间</label>
+                        <div>{{ report.created_at.strftime('%Y-%m-%d') }}</div>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <a href="/topadmin/report/{{ report.id }}" class="button">查看详情</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function filterReports() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const reportType = document.getElementById('reportTypeFilter').value;
+            const year = document.getElementById('yearFilter').value;
+            
+            const reports = document.querySelectorAll('.report-card');
+            
+            reports.forEach(report => {
+                let shouldShow = true;
+                
+                // Search term filter
+                if (searchTerm) {
+                    const reportText = report.textContent.toLowerCase();
+                    shouldShow = reportText.includes(searchTerm);
+                }
+                
+                // Report type filter
+                if (shouldShow && reportType) {
+                    const reportTypeElement = report.querySelector('.report-type');
+                    shouldShow = reportTypeElement.classList.contains(reportType);
+                }
+                
+                // Year filter
+                if (shouldShow && year) {
+                    const yearText = report.textContent.match(/年份\s+(\d{4})/);
+                    if (yearText) {
+                        shouldShow = yearText[1] === year;
+                    }
+                }
+                
+                report.style.display = shouldShow ? '' : 'none';
+            });
+        }
+
+        document.getElementById('searchInput').addEventListener('input', filterReports);
+        document.getElementById('reportTypeFilter').addEventListener('change', filterReports);
+        document.getElementById('yearFilter').addEventListener('change', filterReports);
+    </script>
+</body>
+</html>

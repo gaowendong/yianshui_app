@@ -19,12 +19,87 @@ def get_channel_second_level_users(db: Session, channel_id: int) -> List[User]:
         User.role == "level_2"
     ).all()
 
-def get_channel_reports(db: Session, channel_id: int) -> List[CompanyReport]:
-    return db.query(CompanyReport).join(
-        User, CompanyReport.processed_by_user_id == User.id
-    ).filter(
-        User.channel_id == channel_id
-    ).all()
+def get_channel_reports(db: Session, channel_id: int) -> List[dict]:
+    # Get all users belonging to this channel
+    channel_users = db.query(User.id).filter(User.channel_id == channel_id).subquery()
+    
+    # Get all reports processed by these users, including company info
+    reports = (
+        db.query(CompanyReport, CompanyInfo)
+        .join(channel_users, CompanyReport.processed_by_user_id == channel_users.c.id)
+        .join(
+            CompanyInfo,
+            CompanyReport.company_tax_number == CompanyInfo.tax_number
+        )
+        .order_by(CompanyReport.created_at.desc())
+        .all()
+    )
+    
+    # Format the results
+    formatted_reports = []
+    for report, company_info in reports:
+        formatted_reports.append({
+            'id': report.id,
+            'report_type': report.report_type,
+            'year': report.year,
+            'month': report.month,
+            'quarter': report.quarter,
+            'created_at': report.created_at.isoformat() if report.created_at else None,
+            'company_info': {
+                'company_name': company_info.company_name,
+                'tax_number': company_info.tax_number,
+                'industry': company_info.industry,
+                'registration_type': company_info.registration_type,
+                'taxpayer_nature': company_info.taxpayer_nature
+            },
+            'processed_by_user': {
+                'id': report.processed_by_user_id
+            }
+        })
+    
+    return formatted_reports
+
+def get_report_details(db: Session, report_id: int, user_channel_id: int) -> Optional[dict]:
+    # Get the report with company info and verify it belongs to the channel
+    result = (
+        db.query(CompanyReport, CompanyInfo, User)
+        .join(User, CompanyReport.processed_by_user_id == User.id)
+        .join(
+            CompanyInfo,
+            CompanyReport.company_tax_number == CompanyInfo.tax_number
+        )
+        .filter(
+            CompanyReport.id == report_id,
+            User.channel_id == user_channel_id
+        )
+        .first()
+    )
+    
+    if not result:
+        return None
+        
+    report, company_info, user = result
+    
+    return {
+        'report': {
+            'id': report.id,
+            'report_type': report.report_type,
+            'year': report.year,
+            'month': report.month,
+            'quarter': report.quarter,
+            'created_at': report.created_at.isoformat() if report.created_at else None,
+            'report_data': report.report_data,
+            'processed_by_user_id': report.processed_by_user_id
+        },
+        'company_info': {
+            'company_name': company_info.company_name,
+            'tax_number': company_info.tax_number,
+            'industry': company_info.industry,
+            'registration_type': company_info.registration_type,
+            'taxpayer_nature': company_info.taxpayer_nature,
+            'index_standard_type': company_info.index_standard_type
+        }
+    }
 
 def get_user_reports(db: Session, user_id: int) -> List[CompanyReport]:
     return (

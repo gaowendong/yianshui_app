@@ -9,17 +9,42 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
 import os
+from i18n import translation_manager
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
+# Get Chinese translations
+translations = translation_manager.get_translations('zh')
+
+# Add translation function to Jinja2 environment
+templates.env.globals['_'] = translations.gettext
+templates.env.globals['gettext'] = translations.gettext
+templates.env.globals['ngettext'] = translations.ngettext
+
 @router.get("/channel/dashboard", response_class=HTMLResponse)
 async def channel_dashboard(request: Request):
-    return templates.TemplateResponse("channel_dashboard.html", {"request": request})
+    return templates.TemplateResponse("channel_dashboard.html", {
+        "request": request,
+        "locale": 'zh',
+        "_": translations.gettext
+    })
+
+@router.get("/report/view", response_class=HTMLResponse)
+async def view_report(request: Request):
+    return templates.TemplateResponse("view_report.html", {
+        "request": request,
+        "locale": 'zh',
+        "_": translations.gettext
+    })
 
 @router.get("/channel/user/{user_id}/reports", response_class=HTMLResponse)
 async def level2_user_reports(request: Request, user_id: int):
-    return templates.TemplateResponse("level2_user_reports.html", {"request": request})
+    return templates.TemplateResponse("level2_user_reports.html", {
+        "request": request,
+        "locale": 'zh',
+        "_": translations.gettext
+    })
 
 @router.get("/api/channel/dashboard")
 async def get_channel_dashboard(
@@ -40,6 +65,27 @@ async def get_channel_dashboard(
         )
 
     return dashboard_data
+
+@router.get("/api/report/{report_id}")
+async def get_report_details(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.channel_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is not associated with any channel"
+        )
+
+    report_data = channel_service.get_report_details(db, report_id, current_user.channel_id)
+    if not report_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found or access denied"
+        )
+
+    return report_data
 
 @router.get("/api/channel/{channel_id}/user/{user_id}/reports")
 async def get_level2_user_reports_with_auth(

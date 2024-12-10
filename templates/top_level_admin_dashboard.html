@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>顶级管理员仪表板</title>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="/static/css/top_level_admin.css">
+    <style>
+        .logout-link {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            color: #dc3545;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 1px solid #dc3545;
+            border-radius: 4px;
+        }
+        .logout-link:hover {
+            background-color: #dc3545;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-dashboard">
+        <a href="/logout" class="logout-link">退出登录</a>
+        
+        <div class="report-section">
+            <h1>顶级管理员仪表板</h1>
+            <p>欢迎回来，{{ current_user.username }}</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>渠道总数</h3>
+                <div class="value">{{ stats.total_channels }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>用户总数</h3>
+                <div class="value">{{ stats.total_users }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>报告总数</h3>
+                <div class="value">{{ stats.total_reports }}</div>
+            </div>
+        </div>
+
+        <div class="report-section">
+            <div class="search-controls">
+                <input type="text" class="search-input" placeholder="搜索渠道、用户或报告..." id="searchInput">
+                <div class="filter-group">
+                    <select class="filter-select" id="roleFilter">
+                        <option value="">所有角色</option>
+                        <option value="level_1">一级用户</option>
+                        <option value="level_2">二级用户</option>
+                    </select>
+                    <select class="filter-select" id="reportFilter">
+                        <option value="">所有报告类型</option>
+                        <option value="monthly">月度报告</option>
+                        <option value="quarterly">季度报告</option>
+                        <option value="annual">年度报告</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="channels-list">
+            {% for channel in channels %}
+            <div class="channel-item">
+                <div class="channel-header">
+                    <div class="channel-name">{{ channel.channel_name }}</div>
+                    <div class="channel-stats">
+                        <span>渠道编号: {{ channel.channel_number }}</span>
+                        <span>位置: {{ channel.channel_location }}</span>
+                        <span>报告总数: {{ channel.total_reports }}</span>
+                    </div>
+                </div>
+                
+                <div class="user-list">
+                    {% for user in channel.users %}
+                    <div class="user-item">
+                        <div class="user-info">
+                            <span class="username">{{ user.username }}</span>
+                            <span class="role-badge">{{ user.role }}</span>
+                            <span class="report-count">报告数: {{ user.reports_count }}</span>
+                        </div>
+                        <div class="user-actions">
+                            <a href="/topadmin/user/{{ user.id }}/reports" class="button">查看报告</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="channel-actions">
+                    <a href="/topadmin/channel/{{ channel.id }}" class="button">查看渠道详情</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        // Search and filter functionality
+        document.getElementById('searchInput').addEventListener('input', filterContent);
+        document.getElementById('roleFilter').addEventListener('change', filterContent);
+        document.getElementById('reportFilter').addEventListener('change', filterContent);
+
+        function filterContent() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const roleFilter = document.getElementById('roleFilter').value;
+            const reportFilter = document.getElementById('reportFilter').value;
+            
+            const channelItems = document.querySelectorAll('.channel-item');
+            
+            channelItems.forEach(item => {
+                let shouldShow = true;
+                
+                // Search term filter
+                if (searchTerm) {
+                    const itemText = item.textContent.toLowerCase();
+                    shouldShow = itemText.includes(searchTerm);
+                }
+                
+                // Role filter
+                if (shouldShow && roleFilter) {
+                    const userItems = item.querySelectorAll('.user-item');
+                    let hasMatchingRole = false;
+                    userItems.forEach(user => {
+                        if (user.textContent.includes(roleFilter)) {
+                            hasMatchingRole = true;
+                        }
+                    });
+                    shouldShow = hasMatchingRole;
+                }
+                
+                // Report filter
+                if (shouldShow && reportFilter) {
+                    const reports = item.querySelectorAll('.report-count');
+                    let hasMatchingReport = false;
+                    reports.forEach(report => {
+                        if (report.textContent.includes(reportFilter)) {
+                            hasMatchingReport = true;
+                        }
+                    });
+                    shouldShow = hasMatchingReport;
+                }
+                
+                item.style.display = shouldShow ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>

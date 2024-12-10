@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>报告详情</title>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="/static/css/top_level_admin.css">
+    <style>
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            margin-left: 0.5rem;
+        }
+        .status-badge.success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .status-badge.pending {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+        .report-json {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+        .report-json pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .metadata {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #eee;
+            color: #666;
+            font-size: 0.875rem;
+        }
+        .section-title {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-dashboard">
+        <a href="/topadmin/dashboard" class="back-link">← 返回仪表板</a>
+        
+        <div class="report-section">
+            <h1>报告详情</h1>
+            <p>报告ID: {{ report.id }}</p>
+        </div>
+
+        <div class="report-section">
+            <h2 class="section-title">公司信息</h2>
+            <div class="info-grid">
+                <div class="meta-item">
+                    <label>公司名称</label>
+                    <div>{{ report.company_name }}</div>
+                </div>
+                <div class="meta-item">
+                    <label>税号</label>
+                    <div>{{ report.tax_number }}</div>
+                </div>
+                <div class="meta-item">
+                    <label>行业</label>
+                    <div>{{ report.company_info.industry }}</div>
+                </div>
+                <div class="meta-item">
+                    <label>注册类型</label>
+                    <div>{{ report.company_info.registration_type }}</div>
+                </div>
+                <div class="meta-item">
+                    <label>纳税人性质</label>
+                    <div>{{ report.company_info.taxpayer_nature }}</div>
+                </div>
+                <div class="meta-item">
+                    <label>会计准则类型</label>
+                    <div>{{ report.company_info.index_standard_type }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="report-section">
+            <h2 class="section-title">报告信息</h2>
+            <div class="info-grid">
+                <div class="meta-item">
+                    <label>报告类型</label>
+                    <div>
+                        {% if report.report_type == 'monthly' %}
+                            月度报告
+                        {% elif report.report_type == 'quarterly' %}
+                            季度报告
+                        {% else %}
+                            年度报告
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="meta-item">
+                    <label>年份</label>
+                    <div>{{ report.year }}</div>
+                </div>
+                {% if report.month %}
+                <div class="meta-item">
+                    <label>月份</label>
+                    <div>{{ report.month }}</div>
+                </div>
+                {% endif %}
+                {% if report.quarter %}
+                <div class="meta-item">
+                    <label>季度</label>
+                    <div>{{ report.quarter }}</div>
+                </div>
+                {% endif %}
+                <div class="meta-item">
+                    <label>处理人</label>
+                    <div>
+                        {{ report.processed_by.username }}
+                        <span class="status-badge {% if report.processed_by.role == 'level_1' %}success{% else %}pending{% endif %}">
+                            {{ report.processed_by.role }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="report-section">
+            <h2 class="section-title">报告数据</h2>
+            <div class="report-json">
+                <pre>{{ report.report_data | tojson(indent=2) }}</pre>
+            </div>
+        </div>
+
+        <div class="metadata">
+            <p>创建时间: {{ report.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+            {% if report.updated_at %}
+            <p>最后更新: {{ report.updated_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

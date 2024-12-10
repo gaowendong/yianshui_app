@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Report</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .info-item {
+            margin-bottom: 10px;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #34495e;
+            margin-bottom: 5px;
+        }
+        .info-value {
+            color: #2c3e50;
+        }
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .back-button:hover {
+            background-color: #2980b9;
+        }
+        .report-data {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .report-type-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/channel/dashboard" class="back-button">← Back to Dashboard</a>
+        
+        <div class="card">
+            <h2 class="section-title">报告详情</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Report Type</div>
+                    <div class="report-type-badge" id="report-type"></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Year</div>
+                    <div class="info-value" id="report-year"></div>
+                </div>
+                <div class="info-item" id="report-month-container" style="display: none;">
+                    <div class="info-label">Month</div>
+                    <div class="info-value" id="report-month"></div>
+                </div>
+                <div class="info-item" id="report-quarter-container" style="display: none;">
+                    <div class="info-label">Quarter</div>
+                    <div class="info-value" id="report-quarter"></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Created At</div>
+                    <div class="info-value" id="report-created-at"></div>
+                </div>
+            </div>
+            <div class="report-data" id="report-data">
+                <!-- Report data will be displayed here -->
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="section-title">Company Information</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Company Name</div>
+                    <div class="info-value" id="company-name"></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Tax Number</div>
+                    <div class="info-value" id="tax-number"></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Industry</div>
+                    <div class="info-value" id="company-industry"></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Registration Type</div>
+                    <div class="info-value" id="registration-type"></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Taxpayer Nature</div>
+                    <div class="info-value" id="taxpayer-nature"></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Index Standard Type</div>
+                    <div class="info-value" id="index-standard-type"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchReportData() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const reportId = urlParams.get('id');
+                const token = localStorage.getItem("access_token");
+                
+                if (!token) {
+                    window.location.href = "/login";
+                    return;
+                }
+
+                const response = await fetch(`/api/report/${reportId}`, {
+                    headers: {
+                        "Authorization": token
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    updateReportView(data);
+                } else {
+                    const errorText = await response.text();
+                    console.error(`Failed to fetch report data: ${errorText}`);
+                    if (response.status === 401) {
+                        window.location.href = "/login";
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching report data:", error);
+            }
+        }
+
+        function updateReportView(data) {
+            // Update Report Details
+            document.getElementById("report-type").textContent = data.report.report_type;
+            document.getElementById("report-year").textContent = data.report.year;
+            
+            if (data.report.month) {
+                document.getElementById("report-month-container").style.display = "block";
+                document.getElementById("report-month").textContent = data.report.month;
+            }
+            
+            if (data.report.quarter) {
+                document.getElementById("report-quarter-container").style.display = "block";
+                document.getElementById("report-quarter").textContent = data.report.quarter;
+            }
+            
+            document.getElementById("report-created-at").textContent = new Date(data.report.created_at).toLocaleString();
+            
+            // Display report data in a formatted way
+            const reportDataContainer = document.getElementById("report-data");
+            reportDataContainer.innerHTML = `<pre>${JSON.stringify(data.report.report_data, null, 2)}</pre>`;
+
+            // Update Company Information
+            document.getElementById("company-name").textContent = data.company_info.company_name;
+            document.getElementById("tax-number").textContent = data.company_info.tax_number;
+            document.getElementById("company-industry").textContent = data.company_info.industry || 'N/A';
+            document.getElementById("registration-type").textContent = data.company_info.registration_type || 'N/A';
+            document.getElementById("taxpayer-nature").textContent = data.company_info.taxpayer_nature || 'N/A';
+            document.getElementById("index-standard-type").textContent = data.company_info.index_standard_type || 'N/A';
+        }
+
+        // Fetch report data when the page loads
+        fetchReportData();
+    </script>
+</body>
+</html>

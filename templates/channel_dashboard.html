@@ -13,6 +13,21 @@
         .dashboard-container {
             max-width: 1200px;
             margin: 0 auto;
+            position: relative;
+        }
+        .logout-link {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            color: #dc3545;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 1px solid #dc3545;
+            border-radius: 4px;
+        }
+        .logout-link:hover {
+            background-color: #dc3545;
+            color: white;
         }
         .card {
             background: white;
@@ -117,7 +132,7 @@
             background-color: #fff3e0;
             color: #e65100;
         }
-        .view-reports-btn {
+        .view-reports-btn, .view-report-btn {
             padding: 4px 8px;
             background-color: #2196f3;
             color: white;
@@ -126,8 +141,9 @@
             cursor: pointer;
             text-decoration: none;
             font-size: 0.9em;
+            display: inline-block;
         }
-        .view-reports-btn:hover {
+        .view-reports-btn:hover, .view-report-btn:hover {
             background-color: #1976d2;
         }
         .processor-info {
@@ -137,21 +153,35 @@
             background-color: #fff3e0;
             color: #e65100;
         }
+        .report-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .report-detail {
+            font-size: 0.9em;
+            color: #666;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="dashboard-container">
-        <h1>Channel Dashboard</h1>
+        <a href="/logout" class="logout-link">退出登录</a>
+        <h1>渠道看板</h1>
         
         <!-- Channel Info Card -->
         <div class="card" id="channel-info">
-            <h2>Channel Information</h2>
+            <h2>渠道信息</h2>
             <div class="info-grid" id="channel-details">
                 <!-- Channel details will be populated here -->
             </div>
             <div class="balance-form">
                 <input type="number" id="deposit-amount" placeholder="Enter amount" min="0" step="0.01">
-                <button onclick="depositFunds()">Deposit Funds</button>
+                <button onclick="depositFunds()">储值</button>
             </div>
         </div>
 
@@ -159,33 +189,33 @@
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-value" id="total-uploads">0</div>
-                <div class="stat-label">Total Uploads</div>
+                <div class="stat-label">总上传次数</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="total-downloads">0</div>
-                <div class="stat-label">Total Downloads</div>
+                <div class="stat-label">总下载次数</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="total-cost">¥0.00</div>
-                <div class="stat-label">Total Cost</div>
+                <div class="stat-label">总成本</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="current-balance">¥0.00</div>
-                <div class="stat-label">Current Balance</div>
+                <div class="stat-label">当前余额</div>
             </div>
         </div>
 
         <!-- Second Level Users Card -->
         <div class="card">
-            <h2>Second Level Users</h2>
+            <h2>业务员</h2>
             <table>
                 <thead>
                     <tr>
-                        <th>Username</th>
+                        <th>用户名</th>
                         <th>Email</th>
-                        <th>Name</th>
-                        <th>Role</th>
-                        <th>Actions</th>
+                        <th>姓名</th>
+                        <th>角色</th>
+                        <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="second-level-users">
@@ -196,15 +226,15 @@
 
         <!-- Reports Card -->
         <div class="card">
-            <h2>Channel Reports</h2>
+            <h2>渠道报告</h2>
             <table>
                 <thead>
                     <tr>
-                        <th>Date</th>
-                        <th>Company Name</th>
-                        <th>Report Type</th>
-                        <th>Processed By</th>
-                        <th>Status</th>
+                        <th>日期</th>
+                        <th>公司信息</th>
+                        <th>报告详情</th>
+                        <th>生成用户</th>
+                        <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="reports-data">
@@ -215,14 +245,14 @@
 
         <!-- Recent Transactions -->
         <div class="card">
-            <h2>Recent Transactions</h2>
+            <h2>最近交易</h2>
             <table>
                 <thead>
                     <tr>
-                        <th>Date</th>
-                        <th>Type</th>
-                        <th>Report ID</th>
-                        <th>Cost</th>
+                        <th>日期</th>
+                        <th>类型</th>
+                        <th>报告 ID</th>
+                        <th>花费</th>
                     </tr>
                 </thead>
                 <tbody id="transactions-data">
@@ -243,7 +273,7 @@
 
                 const response = await fetch("/api/channel/dashboard", {
                     headers: {
-                        "Authorization": token  // Use token directly without adding "Bearer " prefix
+                        "Authorization": token
                     }
                 });
                 
@@ -270,27 +300,27 @@
             
             channelDetails.innerHTML = `
                 <div class="info-item">
-                    <div class="info-label">Channel Number:</div>
+                    <div class="info-label">渠道号：</div>
                     <div>${channel.channel_number}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Name:</div>
+                    <div class="info-label">姓名：</div>
                     <div>${channel.channel_name}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Location:</div>
+                    <div class="info-label">地区:</div>
                     <div>${channel.channel_location || 'N/A'}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Industry:</div>
+                    <div class="info-label">行业:</div>
                     <div>${channel.industry || 'N/A'}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Contact Person:</div>
+                    <div class="info-label">联系人n:</div>
                     <div>${channel.contact_person || 'N/A'}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Contact Number:</div>
+                    <div class="info-label">联系电话:</div>
                     <div>${channel.contact_number || 'N/A'}</div>
                 </div>
                 <div class="info-item">
@@ -298,11 +328,11 @@
                     <div>${channel.email || 'N/A'}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Registration Date:</div>
+                    <div class="info-label">注册日期:</div>
                     <div>${registrationDate}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Website:</div>
+                    <div class="info-label">网站:</div>
                     <div>${channel.website || 'N/A'}</div>
                 </div>
                 <div class="info-item">
@@ -310,11 +340,11 @@
                     <div>${channel.app || 'N/A'}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Official Account:</div>
+                    <div class="info-label">官方账号:</div>
                     <div>${channel.official_account || 'N/A'}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Douyin Account:</div>
+                    <div class="info-label">抖音账号:</div>
                     <div>${channel.douyin_account || 'N/A'}</div>
                 </div>
             `;
@@ -350,10 +380,28 @@
                 const row = document.createElement("tr");
                 row.innerHTML = `
                     <td>${date}</td>
-                    <td>${report.company_info.company_name}</td>
-                    <td>${report.report_type}</td>
-                    <td><span class="processor-info">${report.processed_by_user.username}</span></td>
-                    <td><span class="status-badge">Active</span></td>
+                    <td>
+                        <div class="report-info">
+                            <strong>${report.company_info.company_name}</strong>
+                            <span class="report-detail">Tax Number: ${report.company_info.tax_number}</span>
+                            <span class="report-detail">Industry: ${report.company_info.industry || 'N/A'}</span>
+                            <span class="report-detail">Registration Type: ${report.company_info.registration_type || 'N/A'}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="report-info">
+                            <span class="report-detail">Type: ${report.report_type}</span>
+                            <span class="report-detail">Year: ${report.year}</span>
+                            ${report.month ? `<span class="report-detail">Month: ${report.month}</span>` : ''}
+                            ${report.quarter ? `<span class="report-detail">Quarter: ${report.quarter}</span>` : ''}
+                        </div>
+                    </td>
+                    <td><span class="processor-info">User ID: ${report.processed_by_user.id}</span></td>
+                    <td>
+                        <div class="action-buttons">
+                            <a href="/report/view?id=${report.id}" class="view-report-btn">View Report</a>
+                        </div>
+                    </td>
                 `;
                 reportsBody.appendChild(row);
             });
@@ -390,7 +438,7 @@
                 const response = await fetch("/api/channel/deposit", {
                     method: "POST",
                     headers: {
-                        "Authorization": token,  // Use token directly without adding "Bearer " prefix
+                        "Authorization": token,
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({ amount: parseFloat(amount) })
