@@ -19,7 +19,8 @@ import json
 from utils.token_utils import SECRET_KEY
 import os
 from routes.top_level_admin import router as top_level_admin_router
-from dependencies import templates
+from routes.second_level_user import router as second_level_user_router
+from dependencies import templates, get_db
 
 # Import internationalization utilities
 from i18n import translation_manager, gettext as _
@@ -70,19 +71,10 @@ admin = create_admin(app, SECRET_KEY)
 # Initialize company info routes
 company_info_router = create_company_info(app)
 
-# Mount channel router
+# Mount routers
 app.include_router(channel.router)
-
-# Mount top level admin router
 app.include_router(top_level_admin_router)
-
-# Database Dependency
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+app.include_router(second_level_user_router)
 
 # Routes
 @app.get("/", response_class=HTMLResponse)
@@ -165,11 +157,13 @@ async def login(request: Request, db: Session = Depends(get_db)):
         
         # Determine redirect URL based on user role and admin status
         if user.is_top_level_admin:
-            redirect_url = "/topadmin/dashboard"  # Updated to use new route
+            redirect_url = "/topadmin/dashboard"
         elif user.is_admin:
             redirect_url = "/admin"
         elif user.role == "level_1":
             redirect_url = "/channel/dashboard"
+        elif user.role == "level_2":
+            redirect_url = "/second-level/dashboard"
         else:
             redirect_url = "/upload_base_info"
         

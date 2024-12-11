@@ -1,174 +1,222 @@
-/* Top Level Admin Dashboard Styles */
-.admin-dashboard {
-    padding: 2rem;
-    max-width: 1200px;
-    margin: 0 auto;
+/* Global Styles */
+body { 
+    font-family: Arial, sans-serif; 
+    margin: 20px;
+    background-color: #f5f5f5;
 }
 
+.dashboard-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+}
+
+/* Logout Link */
+.logout-link {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    color: #dc3545;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border: 1px solid #dc3545;
+    border-radius: 4px;
+}
+
+.logout-link:hover {
+    background-color: #dc3545;
+    color: white;
+}
+
+/* Welcome Message */
+.welcome-message {
+    color: #666;
+    margin-bottom: 20px;
+}
+
+/* Stats Grid */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
 }
 
 .stat-card {
     background: #fff;
+    padding: 15px;
     border-radius: 8px;
-    padding: 1.5rem;
+    text-align: center;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.stat-card h3 {
-    color: #333;
-    margin-bottom: 0.5rem;
-    font-size: 1.1rem;
-}
-
-.stat-card .value {
-    font-size: 2rem;
+.stat-value {
+    font-size: 24px;
     font-weight: bold;
     color: #2c3e50;
 }
 
-.channels-list {
-    background: #fff;
+.stat-label {
+    color: #7f8c8d;
+    margin-top: 5px;
+}
+
+/* Card Styles */
+.card {
+    background: white;
     border-radius: 8px;
-    padding: 1.5rem;
+    padding: 20px;
+    margin-bottom: 20px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.channel-item {
-    border-bottom: 1px solid #eee;
-    padding: 1rem 0;
+/* Search Controls */
+.search-controls {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
 }
 
-.channel-item:last-child {
-    border-bottom: none;
+.search-input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-width: 200px;
+}
+
+.filter-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.filter-select {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+}
+
+/* Channel List */
+.channel-item {
+    margin-bottom: 20px;
 }
 
 .channel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
 .channel-name {
-    font-size: 1.2rem;
+    font-size: 18px;
     font-weight: bold;
     color: #2c3e50;
 }
 
 .channel-stats {
     display: flex;
-    gap: 2rem;
+    gap: 20px;
     color: #666;
+    flex-wrap: wrap;
 }
 
+/* User List */
 .user-list {
-    margin-left: 1.5rem;
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+    margin-top: 15px;
 }
 
 .user-item {
     display: flex;
     justify-content: space-between;
-    padding: 0.5rem 0;
-    color: #666;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
 }
 
-/* Report Details Styles */
-.report-details {
-    padding: 2rem;
-    max-width: 1000px;
-    margin: 0 auto;
+.user-item:last-child {
+    border-bottom: none;
 }
 
-.report-section {
-    background: #fff;
-    border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
 }
 
-.report-header {
-    border-bottom: 2px solid #eee;
-    padding-bottom: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.report-meta {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.meta-item {
-    color: #666;
-}
-
-.meta-item label {
-    display: block;
+.username {
     font-weight: bold;
-    margin-bottom: 0.3rem;
-    color: #333;
+    color: #2c3e50;
 }
 
-/* User Reports List */
-.reports-list {
-    display: grid;
-    gap: 1rem;
+.user-role {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    background-color: #fff3e0;
+    color: #e65100;
 }
 
-.report-card {
-    background: #fff;
-    border-radius: 8px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: transform 0.2s;
+.report-count {
+    color: #666;
 }
 
-.report-card:hover {
-    transform: translateY(-2px);
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 8px;
 }
 
-/* Channel Details */
-.channel-details {
-    padding: 2rem;
-    max-width: 1000px;
-    margin: 0 auto;
+.view-reports-btn {
+    padding: 4px 8px;
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 0.9em;
 }
 
-.channel-info {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-.info-card {
-    background: #fff;
-    border-radius: 8px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+.view-reports-btn:hover {
+    background-color: #1976d2;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-    .admin-dashboard,
-    .report-details,
-    .channel-details {
+    .dashboard-container {
         padding: 1rem;
     }
 
-    .stat-card .value {
+    .stat-value {
         font-size: 1.5rem;
+    }
+
+    .channel-header {
+        flex-direction: column;
+        align-items: flex-start;
     }
 
     .channel-stats {
         flex-direction: column;
         gap: 0.5rem;
+    }
+
+    .user-item {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .user-info {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }
